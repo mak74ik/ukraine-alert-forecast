@@ -41,7 +41,7 @@
 
 ### Варіант 1: Запуск через Bash-скрипт (Linux / macOS)
 ```bash
-git clone https://github.com/YOUR_USERNAME/ukraine-alert-forecast.git
+git clone https://github.com/mak74ik/ukraine-alert-forecast.git
 cd ukraine-alert-forecast
 ./run.sh
 ```

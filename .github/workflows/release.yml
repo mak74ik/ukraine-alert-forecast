@@ -23,11 +23,11 @@ jobs:
             zip_name: ukraine-alert-forecast-windows-x64.zip
           - os: macos-latest
             arch: arm64
-            artifact_name: ukraine-alert-forecast
+            artifact_name: UA Alert Forecast.app
             zip_name: ukraine-alert-forecast-macos-arm64.zip
           - os: macos-13
             arch: x64
-            artifact_name: ukraine-alert-forecast
+            artifact_name: UA Alert Forecast.app
             zip_name: ukraine-alert-forecast-macos-x64.zip
           - os: ubuntu-latest
             arch: x64
@@ -54,7 +54,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pyinstaller
+          pip install pyinstaller pillow
 
       - name: Build Executable with PyInstaller
         run: |
@@ -70,10 +70,15 @@ jobs:
       - name: Package macOS Binary
         if: runner.os == 'macOS'
         run: |
-          chmod +x dist/ukraine-alert-forecast
-          mv dist/ukraine-alert-forecast dist/ukraine-alert-forecast-macos-${{ matrix.arch }}
+          codesign --force --deep --sign - "dist/UA Alert Forecast.app"
+          mkdir -p dist/dmg_root
+          cp -R "dist/UA Alert Forecast.app" dist/dmg_root/
+          ln -s /Applications dist/dmg_root/Applications
+          hdiutil create -volname "UA Alert Forecast" -srcfolder dist/dmg_root -ov -format UDZO "dist/UA-Alert-Forecast-macOS-${{ matrix.arch }}.dmg"
           cd dist
-          zip -9 "${{ matrix.zip_name }}" ukraine-alert-forecast-macos-${{ matrix.arch }}
+          zip -r -9 "${{ matrix.zip_name }}" "UA Alert Forecast.app"
+          cp "${{ matrix.zip_name }}" "UA-Alert-Forecast-macOS.zip" || true
+          cp "UA-Alert-Forecast-macOS-${{ matrix.arch }}.dmg" "UA-Alert-Forecast-macOS.dmg" || true
 
       - name: Package Linux Binary
         if: runner.os == 'Linux'
@@ -85,11 +90,12 @@ jobs:
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
         with:
+          tag_name: v2.0.0
           files: |
             dist/*.zip
             dist/*.tar.gz
             dist/*.exe
+            dist/*.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

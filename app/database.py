@@ -5,11 +5,52 @@ Supports sub-regional granularity, localized districts, and fail-safe recovery.
 import sqlite3
 import asyncio
 import json
+import os
+import shutil
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-DB_PATH = Path("alerts_data.db")
+def _get_app_db_path() -> Path:
+    env_db = os.environ.get("ALERTS_DB_PATH")
+    if env_db:
+        p = Path(env_db)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        return p
+
+    cwd_db = Path("alerts_data.db")
+    if cwd_db.exists() and os.access(cwd_db, os.W_OK):
+        return cwd_db
+
+    # User Application Data directory
+    app_dir = Path.home() / ".ua_alert_forecast"
+    try:
+        app_dir.mkdir(parents=True, exist_ok=True)
+        user_db = app_dir / "alerts_data.db"
+    except Exception:
+        user_db = cwd_db
+
+    if not user_db.exists():
+        bundled_seed = None
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            candidate = Path(sys._MEIPASS) / "alerts_data.db"
+            if candidate.exists():
+                bundled_seed = candidate
+        else:
+            candidate = Path(__file__).resolve().parent.parent / "alerts_data.db"
+            if candidate.exists():
+                bundled_seed = candidate
+
+        if bundled_seed and bundled_seed.exists():
+            try:
+                shutil.copy2(bundled_seed, user_db)
+            except Exception:
+                pass
+
+    return user_db
+
+DB_PATH = _get_app_db_path()
 
 def _init_db_sync():
     with sqlite3.connect(DB_PATH) as db:

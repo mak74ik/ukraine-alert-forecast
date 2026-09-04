@@ -5,6 +5,7 @@ from PyInstaller.utils.hooks import collect_all
 
 datas = [
     ('app/static', 'app/static'),
+    ('assets', 'assets'),
 ]
 if os.path.exists('alerts_data.db'):
     datas.append(('alerts_data.db', '.'))
@@ -56,23 +57,54 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
+icon_path = 'assets/icon.icns' if os.path.exists('assets/icon.icns') else None
+
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='ukraine-alert-forecast',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=icon_path,
 )
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='ukraine-alert-forecast',
+)
+
+if sys.platform == 'darwin':
+    app = BUNDLE(
+        coll,
+        name='UA Alert Forecast.app',
+        icon=icon_path,
+        bundle_identifier='com.mak74ik.ua-alert-forecast',
+        info_plist={
+            'CFBundleDisplayName': 'UA Alert Forecast',
+            'CFBundleName': 'UA Alert Forecast',
+            'CFBundleIdentifier': 'com.mak74ik.ua-alert-forecast',
+            'CFBundleVersion': '2.0.0',
+            'CFBundleShortVersionString': '2.0.0',
+            'NSHighResolutionCapable': True,
+            'LSMinimumSystemVersion': '11.0.0',
+            'NSAppTransportSecurity': {
+                'NSAllowsArbitraryLoads': True,
+                'NSAllowsLocalNetworking': True,
+            },
+        }
+    )

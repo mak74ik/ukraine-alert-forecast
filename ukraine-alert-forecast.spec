@@ -111,7 +111,8 @@ if is_mac:
         }
     )
 else:
-    # Windows & Linux: Single executable, NO console window (console=False)
+    # Windows & Linux: Single executable, NO console window (console=False), UPX disabled to avoid AV false positives
+    version_file = 'file_version_info.txt' if os.path.exists('file_version_info.txt') else None
     exe = EXE(
         pyz,
         a.scripts,
@@ -122,7 +123,7 @@ else:
         debug=False,
         bootloader_ignore_signals=False,
         strip=False,
-        upx=True,
+        upx=False,
         upx_exclude=[],
         runtime_tmpdir=None,
         console=False,
@@ -132,4 +133,6 @@ else:
         codesign_identity=None,
         entitlements_file=None,
         icon=icon_path,
+        version=version_file,
     )
+

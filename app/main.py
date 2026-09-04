@@ -24,7 +24,7 @@ logger = logging.getLogger("app")
 forecaster = AlertForecaster()
 monitor_service: OpenMonitoringService = None
 
-async def broadcast_threat_callback(event, projections):
+async def broadcast_threat_callback(event, projections=None):
     """Callback when monitor parses a new event -> pushes WebSocket update."""
     try:
         active = await get_active_alerts()
@@ -86,8 +86,18 @@ async def websocket_endpoint(websocket: WebSocket):
         ws_manager.disconnect(websocket)
 
 # Mount Static UI Files
-static_dir = Path(__file__).resolve().parent / "static"
-static_dir.mkdir(parents=True, exist_ok=True)
+import sys
+
+def _get_static_dir() -> Path:
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        bundle_path = Path(sys._MEIPASS) / "app" / "static"
+        if bundle_path.exists():
+            return bundle_path
+    local_path = Path(__file__).resolve().parent / "static"
+    local_path.mkdir(parents=True, exist_ok=True)
+    return local_path
+
+static_dir = _get_static_dir()
 app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
 
 if __name__ == "__main__":

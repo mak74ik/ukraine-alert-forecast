@@ -57,38 +57,40 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
-icon_path = 'assets/icon.icns' if os.path.exists('assets/icon.icns') else None
+is_mac = sys.platform == 'darwin'
+icon_path = 'assets/icon.icns' if is_mac and os.path.exists('assets/icon.icns') else ('assets/icon.ico' if os.path.exists('assets/icon.ico') else None)
 
-exe = EXE(
-    pyz,
-    a.scripts,
-    [],
-    exclude_binaries=True,
-    name='ukraine-alert-forecast',
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=True,
-    console=False,
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-    icon=icon_path,
-)
+if is_mac:
+    # macOS: Proper onedir .app bundle
+    exe = EXE(
+        pyz,
+        a.scripts,
+        [],
+        exclude_binaries=True,
+        name='ukraine-alert-forecast',
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=True,
+        console=False,
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        target_arch=None,
+        codesign_identity=None,
+        entitlements_file=None,
+        icon=icon_path,
+    )
 
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='ukraine-alert-forecast',
-)
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.datas,
+        strip=False,
+        upx=True,
+        upx_exclude=[],
+        name='ukraine-alert-forecast',
+    )
 
-if sys.platform == 'darwin':
     app = BUNDLE(
         coll,
         name='UA Alert Forecast.app',
@@ -107,4 +109,27 @@ if sys.platform == 'darwin':
                 'NSAllowsLocalNetworking': True,
             },
         }
+    )
+else:
+    # Windows & Linux: Single executable, NO console window (console=False)
+    exe = EXE(
+        pyz,
+        a.scripts,
+        a.binaries,
+        a.datas,
+        [],
+        name='ukraine-alert-forecast',
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=True,
+        upx_exclude=[],
+        runtime_tmpdir=None,
+        console=False,
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        target_arch=None,
+        codesign_identity=None,
+        entitlements_file=None,
+        icon=icon_path,
     )

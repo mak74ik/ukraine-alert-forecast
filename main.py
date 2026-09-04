@@ -57,14 +57,26 @@ def wait_for_server(url: str, timeout: float = 12.0) -> bool:
             time.sleep(0.2)
     return False
 
+def safe_print(*args, **kwargs):
+    """Safely print text without raising UnicodeEncodeError on Windows cp1251/cp866."""
+    try:
+        print(*args, **kwargs)
+    except Exception:
+        pass
+
 def main():
     multiprocessing.freeze_support()
 
-    # Safety check for windowed/GUI environment where streams might be None
-    if sys.stdout is None:
-        sys.stdout = open(os.devnull, 'w')
-    if sys.stderr is None:
-        sys.stderr = open(os.devnull, 'w')
+    # Reconfigure stdout/stderr for UTF-8 with error replacement (fixes Windows cp1251 crash)
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        if stream is None:
+            setattr(sys, stream_name, open(os.devnull, 'w', encoding='utf-8', errors='replace'))
+        else:
+            try:
+                stream.reconfigure(encoding='utf-8', errors='replace')
+            except Exception:
+                pass
 
     parser = argparse.ArgumentParser(description="UA Alert Forecast & Live Vector Radar System")
     parser.add_argument("--port", "-p", type=int, default=None, help="Port to run web server on (default: 8080 or next free)")
@@ -85,11 +97,11 @@ def main():
     
     server_url = f"http://localhost:{port}" if host in ("127.0.0.1", "0.0.0.0") else f"http://{host}:{port}"
 
-    print("=" * 68)
-    print("🇺🇦 UA ALERT FORECAST & AIRBORNE RADAR SYSTEM 2026 PRO")
-    print(f"🚀 Autonomous Desktop Engine: {server_url}")
-    print("📡 Monitoring 26 open sources with real-time vector kinematics")
-    print("=" * 68)
+    safe_print("=" * 68)
+    safe_print("[UA ALERT FORECAST] AIRBORNE RADAR SYSTEM 2026 PRO")
+    safe_print(f"[ENGINE] Autonomous Desktop Engine: {server_url}")
+    safe_print("[INFO] Monitoring 26 open sources with real-time vector kinematics")
+    safe_print("=" * 68)
 
     # Configure uvicorn server
     config = uvicorn.Config(
@@ -109,31 +121,31 @@ def main():
 
     # Headless mode
     if args.headless or os.environ.get("HEADLESS", "").lower() in ("1", "true"):
-        print(f"✨ Server running in headless mode at {server_url}. Press Ctrl+C to stop.")
+        safe_print(f"[HEADLESS] Server running in headless mode at {server_url}. Press Ctrl+C to stop.")
         try:
             while not server.should_exit:
                 time.sleep(0.5)
         except KeyboardInterrupt:
-            print("\nShutting down server...")
+            safe_print("\nShutting down server...")
             server.should_exit = True
         return
 
     # Browser-only mode
     if args.browser:
-        print(f"🌐 Opening default browser at {server_url}...")
+        safe_print(f"[BROWSER] Opening default browser at {server_url}...")
         webbrowser.open(server_url)
         try:
             while not server.should_exit:
                 time.sleep(0.5)
         except KeyboardInterrupt:
-            print("\nShutting down server...")
+            safe_print("\nShutting down server...")
             server.should_exit = True
         return
 
     # Try native desktop window via pywebview
     try:
         import webview
-        print("🖥️  Opening native desktop window...")
+        safe_print("[DESKTOP] Opening native desktop window...")
         window = webview.create_window(
             title="UA Alert Forecast & Vector Radar System",
             url=server_url,
@@ -144,15 +156,16 @@ def main():
         webview.start()
         server.should_exit = True
     except Exception as e:
-        print(f"⚠️  Native window unavailable ({e}). Opening in web browser instead...")
+        safe_print(f"[NOTICE] Native window unavailable ({e}). Opening in web browser instead...")
         webbrowser.open(server_url)
         try:
             while not server.should_exit:
                 time.sleep(0.5)
         except KeyboardInterrupt:
-            print("\nShutting down server...")
+            safe_print("\nShutting down server...")
             server.should_exit = True
 
 if __name__ == "__main__":
     main()
+
 

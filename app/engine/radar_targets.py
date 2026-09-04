@@ -153,15 +153,8 @@ class RadarTrackingService:
         return list(self.active_targets.values())
 
     def get_live_radar_tracks(self) -> List[Dict[str, Any]]:
-        # If no active targets, seed realistic demo tracks based on active alerts
-        now = datetime.now(timezone.utc)
-        if not self.active_targets:
-            # Seed 2 realistic Shahed tracks in south/central corridor
-            t1 = AirborneTarget("TRK-101", ThreatType.SHAHED, 49.79, 30.13, 280.0, 165.0, 1200, "ПС ЗСУ", "БПЛА Shahed у напрямку Білої Церкви", now - timedelta(minutes=5), "Біла Церква")
-            t2 = AirborneTarget("TRK-102", ThreatType.SHAHED, 47.57, 34.40, 310.0, 170.0, 950, "Ванёк", "БПЛА над Нікопольським районом", now - timedelta(minutes=12), "Нікополь")
-            self.active_targets["TRK-101"] = t1
-            self.active_targets["TRK-102"] = t2
-
+        # Only return genuine live airborne targets, never fake/static mock drones
         return [t.to_dict() for t in self.active_targets.values()]
 
 radar_service = RadarTrackingService()
+

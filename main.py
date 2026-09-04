@@ -60,12 +60,21 @@ def wait_for_server(url: str, timeout: float = 12.0) -> bool:
 def main():
     multiprocessing.freeze_support()
 
+    # Safety check for windowed/GUI environment where streams might be None
+    if sys.stdout is None:
+        sys.stdout = open(os.devnull, 'w')
+    if sys.stderr is None:
+        sys.stderr = open(os.devnull, 'w')
+
     parser = argparse.ArgumentParser(description="UA Alert Forecast & Live Vector Radar System")
     parser.add_argument("--port", "-p", type=int, default=None, help="Port to run web server on (default: 8080 or next free)")
     parser.add_argument("--host", "-H", type=str, default=None, help="Host to bind to (default: 127.0.0.1 for desktop, 0.0.0.0 if specified)")
     parser.add_argument("--browser", "-b", action="store_true", help="Launch in default system web browser instead of native desktop window")
     parser.add_argument("--headless", "-s", action="store_true", help="Run in headless background/server mode without opening any window or browser")
-    args = parser.parse_args()
+
+    # Filter out macOS Finder arguments like -psn_0_...
+    clean_argv = [arg for arg in sys.argv[1:] if not arg.startswith("-psn")]
+    args, _ = parser.parse_known_args(clean_argv)
 
     env_host = os.environ.get("HOST")
     host = args.host or env_host or "127.0.0.1"

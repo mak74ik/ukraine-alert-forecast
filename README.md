@@ -40,13 +40,13 @@
 ## 🚀 Швидкий запуск (Quick Start)
 
 ### 📦 Варіант 1: Завантажити готову програму в 1 файл (Без встановлення Python)
-Завантажте готовий реліз зі сторінки **[GitHub Releases](https://github.com/mak74ik/ukraine-alert-forecast/releases)**:
-- 🪟 **Windows**: завантажте `ukraine-alert-forecast-windows-x64.zip`, розпакуйте та запустіть `.exe`.
-- 🍎 **macOS (Apple Silicon)**: завантажте `ukraine-alert-forecast-macos-arm64.zip`, розпакуйте та запустіть файл.
-- 🍎 **macOS (Intel)**: завантажте `ukraine-alert-forecast-macos-x64.zip`.
-- 🐧 **Linux**: завантажте `ukraine-alert-forecast-linux-x64.tar.gz`.
+Завантажте готовий реліз зі сторінки **[GitHub Releases v2.0.0](https://github.com/mak74ik/ukraine-alert-forecast/releases/tag/v2.0.0)**:
+- 🍎 **macOS (Рекомендовано)**: завантажте [**UA-Alert-Forecast-macOS.dmg**](https://github.com/mak74ik/ukraine-alert-forecast/releases/download/v2.0.0/UA-Alert-Forecast-macOS.dmg), відкрийте та перетягніть у **Applications**.
+- 🪟 **Windows**: завантажте [**ukraine-alert-forecast-windows-x64.exe**](https://github.com/mak74ik/ukraine-alert-forecast/releases/download/v2.0.0/ukraine-alert-forecast-windows-x64.exe) або [.zip](https://github.com/mak74ik/ukraine-alert-forecast/releases/download/v2.0.0/ukraine-alert-forecast-windows-x64.zip), запустіть в 1 клік.
+- 🐧 **Linux**: завантажте [**ukraine-alert-forecast-linux-x64.tar.gz**](https://github.com/mak74ik/ukraine-alert-forecast/releases/download/v2.0.0/ukraine-alert-forecast-linux-x64.tar.gz).
 
 > **100% автономно:** жодних залежностей, терміналів чи Docker — програма стартує одразу як нативний додаток з мапою та радаром!
+
 
 ---
 

@@ -266,6 +266,103 @@ class OpenWebAlertMonitor:
 
         return event
 
+    async def scan_specific_channel(self, channel_input: str, custom_name: Optional[str] = None) -> Dict[str, Any]:
+        """Scrapes and parses a specific Telegram channel (by username, link, or t.me/s URL)."""
+        clean = channel_input.strip()
+        clean = clean.replace("https://", "").replace("http://", "").replace("t.me/s/", "").replace("t.me/", "").lstrip("@")
+        username = clean.split("/")[0].split("?")[0].strip()
+        if not username:
+            return {"status": "error", "error": "Invalid channel username or URL", "channel": channel_input, "messages_found": 0, "threats_found": 0, "threats": []}
+
+        url = f"https://t.me/s/{username}"
+        display_name = custom_name or f"@{username}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            "Accept-Language": "uk-UA,uk;q=0.9,en;q=0.8"
+        }
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=7)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(url, headers=headers) as resp:
+                    if resp.status != 200:
+                        return {
+                            "status": "error",
+                            "error": f"HTTP {resp.status}",
+                            "channel": display_name,
+                            "url": f"https://t.me/{username}",
+                            "messages_found": 0,
+                            "threats_found": 0,
+                            "threats": []
+                        }
+                    html = await resp.text()
+                    messages = self._extract_messages_from_html(html)
+                    
+                    threats = []
+                    # Process newest 15 messages
+                    for raw_text in messages[-15:]:
+                        text_hash = f"{display_name}_{hash(raw_text[:60])}"
+                        if text_hash not in self._processed_msg_hashes:
+                            self._processed_msg_hashes.add(text_hash)
+                        
+                        event = await self.process_raw_message(raw_text, channel=display_name)
+                        if event:
+                            threats.append({
+                                "text": raw_text[:90] + ("..." if len(raw_text) > 90 else ""),
+                                "threat_type": event.threat_type.value,
+                                "alert_level": event.alert_level.value,
+                                "is_clear": event.is_clear,
+                                "regions": event.region_ids,
+                                "sub_regions": [sr["name_ua"] for sr in event.sub_regions]
+                            })
+
+                    return {
+                        "status": "success",
+                        "channel": display_name,
+                        "url": f"https://t.me/{username}",
+                        "messages_found": len(messages),
+                        "threats_found": len(threats),
+                        "threats": threats
+                    }
+        except Exception as e:
+            return {
+                "status": "error",
+                "error": str(e),
+                "channel": display_name,
+                "url": f"https://t.me/{username}",
+                "messages_found": 0,
+                "threats_found": 0,
+                "threats": []
+            }
+
+    async def scan_region_channels(self, region_id: str) -> Dict[str, Any]:
+        """Scans all 5+ Telegram channels assigned to this region."""
+        from app.data.sources import get_channels_by_region
+        channels = get_channels_by_region(region_id)
+        
+        tasks = []
+        for ch in channels:
+            ch_user = ch.get("username") or ch.get("url", "")
+            ch_name = ch.get("name", ch_user)
+            tasks.append(self.scan_specific_channel(ch_user, custom_name=ch_name))
+
+        channel_results = await asyncio.gather(*tasks, return_exceptions=False)
+        
+        total_msgs = sum(r.get("messages_found", 0) for r in channel_results)
+        total_threats = sum(r.get("threats_found", 0) for r in channel_results)
+        
+        # Verify coherent siren states
+        await self.sync_real_active_alerts()
+
+        return {
+            "status": "success",
+            "region_id": region_id,
+            "channels_scanned": len(channels),
+            "total_messages_found": total_msgs,
+            "total_threats_found": total_threats,
+            "channel_results": channel_results
+        }
+
     async def _run_trajectory_pruner(self):
         while self.is_running:
             try:

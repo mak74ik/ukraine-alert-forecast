@@ -70,10 +70,21 @@ class OpenWebAlertMonitor:
         self.is_running = True
         logger.info(f"Starting Multi-Source Ingestion Engine across {len(EXPANDED_PUBLIC_WEB_FEEDS)} channels...")
         
-        # Initial high-priority synchronization
+        # 1. Initial fast scrape of top intelligence channels so current threats/levels are populated
+        try:
+            init_headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept-Language": "uk-UA,uk;q=0.9,en;q=0.8"
+            }
+            top_feeds = EXPANDED_PUBLIC_WEB_FEEDS[:8]
+            await asyncio.gather(*[self._fetch_and_process_channel(url, name, init_headers) for url, name, _ in top_feeds], return_exceptions=True)
+        except Exception as e:
+            logger.warning(f"Initial channel pre-scrape warning: {e}")
+
+        # 2. Initial siren telemetry synchronization
         await self.sync_real_active_alerts()
         
-        # Background loops
+        # 3. Background loops
         self._tasks.append(asyncio.create_task(self._run_open_siren_api_poller()))
         self._tasks.append(asyncio.create_task(self._run_expanded_web_channels_poller()))
         self._tasks.append(asyncio.create_task(self._run_trajectory_pruner()))
@@ -178,8 +189,8 @@ class OpenWebAlertMonitor:
                         html = await resp.text()
                         messages = self._extract_messages_from_html(html)
                         
-                        # Process newest 4 messages
-                        for raw_text in messages[-4:]:
+                        # Process newest 10 messages for full coverage
+                        for raw_text in messages[-10:]:
                             text_hash = f"{channel_name}_{hash(raw_text[:60])}"
                             if text_hash not in self._processed_msg_hashes:
                                 self._processed_msg_hashes.add(text_hash)
@@ -226,8 +237,11 @@ class OpenWebAlertMonitor:
         # 2. Update alerts for affected regions
         for reg_id in event.region_ids:
             if event.is_clear or event.threat_type == ThreatType.ALL_CLEAR:
-                if reg_id not in ["UA-43", "UA-44"]:
-                    await clear_alert(reg_id)
+                # Require explicit all-clear phrase to prevent premature cancellations
+                raw_low = event.raw_text.lower()
+                if any(p in raw_low for p in ["відбій тривог", "отбой тревог", "відбій повітрян", "відбій по всій", "чисто", "отбой"]):
+                    if reg_id not in ["UA-43", "UA-44"]:
+                        await clear_alert(reg_id)
             else:
                 desc = f"{event.threat_type.value} | {event.raw_text[:60]}"
                 await activate_alert(

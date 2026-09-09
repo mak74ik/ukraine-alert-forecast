@@ -143,9 +143,17 @@ async def save_threat_log(
 ):
     await asyncio.to_thread(_save_threat_log_sync, channel, raw_text, threat_type, is_clear, region_ids, sub_regions, confidence, direction)
 
+LEVEL_PRIORITY: Dict[str, int] = {
+    "RED": 3,
+    "ORANGE": 2,
+    "YELLOW": 1,
+    "CLEAR": 0
+}
+
 def _activate_alert_sync(region_id: str, threat_type: str, source_channel: str, description: str, is_partial: bool = False, sub_regions: Optional[List[Dict[str, Any]]] = None, alert_level: Optional[str] = None):
     now_iso = datetime.now(timezone.utc).isoformat()
     sub_json = json.dumps(sub_regions or [])
+
     level = alert_level
     if not level:
         try:
@@ -154,7 +162,7 @@ def _activate_alert_sync(region_id: str, threat_type: str, source_channel: str, 
             level = "RED"
 
     with sqlite3.connect(DB_PATH) as db:
-        cursor = db.execute("SELECT id, is_partial, alert_level FROM alerts WHERE region_id = ? AND is_active = 1", (region_id,))
+        cursor = db.execute("SELECT id, is_partial, alert_level, threat_type, source_channel FROM alerts WHERE region_id = ? AND is_active = 1", (region_id,))
         row = cursor.fetchone()
         if not row:
             db.execute("""
@@ -163,16 +171,38 @@ def _activate_alert_sync(region_id: str, threat_type: str, source_channel: str, 
             """, (region_id, threat_type, now_iso, source_channel, description, 1 if is_partial else 0, sub_json, level))
             db.commit()
         else:
-            # If incoming is full alert, upgrade from partial
+            alert_id, existing_partial, existing_level, existing_threat, existing_source = row
+            
+            # If incoming call is generic telemetry confirmation from open siren API:
+            if source_channel == "Офіційна Телеметрія Тривог" or threat_type == ThreatType.GENERAL_ALERT.value:
+                # If alert already has concrete threat intel (e.g. SHAHED / KAB) or specific level, keep it
+                return
+
+            # Incoming call is from concrete threat intelligence (Telegram / AF / Radar)
             updates = []
             params = []
-            if not is_partial:
+
+            # 1. Update threat_type, source, description, and alert_level
+            updates.append("threat_type = ?")
+            params.append(threat_type)
+            updates.append("source_channel = ?")
+            params.append(source_channel)
+            updates.append("description = ?")
+            params.append(description)
+            updates.append("alert_level = ?")
+            params.append(level)
+
+            # 2. Update sub-regions & partial state if provided
+            if sub_regions:
+                updates.append("sub_regions_json = ?")
+                params.append(sub_json)
+                updates.append("is_partial = ?")
+                params.append(1 if is_partial else 0)
+            elif not is_partial and existing_partial:
                 updates.append("is_partial = 0")
-            if level == "RED" and row[2] != "RED":
-                updates.append("alert_level = ?")
-                params.append(level)
+
             if updates:
-                params.append(row[0])
+                params.append(alert_id)
                 db.execute(f"UPDATE alerts SET {', '.join(updates)} WHERE id = ?", tuple(params))
                 db.commit()
 

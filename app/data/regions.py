@@ -296,15 +296,15 @@ REGIONS: Dict[str, Dict[str, Any]] = {
 # Lookup helpers
 def find_regions_by_text(text: str) -> List[str]:
     """Identify which oblast IDs are mentioned in the given text."""
-    text_lower = text.lower()
+    text_clean = text.lower().replace("’", "'").replace("‘", "'").replace("`", "'")
     matched = []
     
     # Check for "Вся Україна" / "All Ukraine" (e.g. MiG-31K takeoff)
-    if any(k in text_lower for k in ["вся україна", "вся украина", "масштабна тривога", "по всій території", "по всей территории", "зліт міг", "взлет миг", "міг-31к", "миг-31к"]):
+    if any(k in text_clean for k in ["вся україна", "вся украина", "масштабна тривога", "по всій території", "по всей территории", "зліт міг", "взлет миг", "міг-31к", "миг-31к"]):
         return list(REGIONS.keys())
 
     for reg_id, data in REGIONS.items():
-        if any(alias in text_lower for alias in data["aliases"]):
+        if any(alias in text_clean for alias in data["aliases"]):
             matched.append(reg_id)
             
     return matched

@@ -597,20 +597,29 @@ async function loadRegionForecast(regionId) {
         const descEl = document.getElementById('threatDescription');
 
         if (data.is_active_now) {
-            if (data.is_partial && data.sub_regions && data.sub_regions.length > 0) {
-                badge.className = "px-3 py-1 text-xs font-bold rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30 animate-pulse";
-                badge.innerText = `⚠️ ЧАСТКОВА ТРИВОГА (В ОКРЕМИХ РАЙОНАХ)`;
-                const citiesList = data.sub_regions.map(c => c.name_ua).join(', ');
-                descEl.innerHTML = `<span class="text-amber-300 font-semibold">Локалізовані райони під загрозою:</span> ${citiesList}`;
+            const lvl = data.alert_level || 'RED';
+            if (lvl === 'YELLOW') {
+                badge.className = "px-3 py-1 text-xs font-bold rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 animate-pulse";
+                badge.innerText = `🟡 ЖОВТИЙ РІВЕНЬ (БПЛА / ДРОНИ)`;
+                descEl.innerHTML = `<span class="text-yellow-300 font-semibold">Загроза ударних дронів (Шахеди).</span> Робота дозволена за наявності укриття.`;
+            } else if (lvl === 'ORANGE') {
+                badge.className = "px-3 py-1 text-xs font-bold rounded-full bg-orange-500/20 text-orange-300 border border-orange-500/40 animate-pulse";
+                badge.innerText = `🟠 ПОМАРАНЧЕВИЙ РІВЕНЬ (КАБ / АВІАЦІЯ)`;
+                descEl.innerHTML = `<span class="text-orange-300 font-semibold">Активність тактичної авіації / загроза КАБ.</span> Підвищена небезпека.`;
             } else {
-                badge.className = "px-3 py-1 text-xs font-bold rounded-full bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse";
-                badge.innerText = `🔴 ПОВІТРЯНА ТРИВОГА (ВСЯ ОБЛАСТЬ)`;
-                descEl.innerText = `Зафіксовано активну загрозу: ${data.current_threat}`;
+                badge.className = "px-3 py-1 text-xs font-bold rounded-full bg-red-500/20 text-red-300 border border-red-500/40 animate-pulse";
+                badge.innerText = `🔴 ЧЕРВОНИЙ РІВЕНЬ (РАКЕТИ / БАЛІСТИКА)`;
+                descEl.innerHTML = `<span class="text-red-300 font-semibold">Пряма ракетна або балістична загроза!</span> Негайно прямуйте в укриття!`;
+            }
+
+            if (data.is_partial && data.sub_regions && data.sub_regions.length > 0) {
+                const citiesList = data.sub_regions.map(c => c.name_ua).join(', ');
+                descEl.innerHTML += `<div class="mt-1 text-[11px] text-amber-300 font-medium"><i class="fa-solid fa-location-dot mr-1"></i>Локалізовано: <span class="text-slate-200">${citiesList}</span></div>`;
             }
         } else {
             badge.className = "px-3 py-1 text-xs font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
             badge.innerText = `🟢 ВІДБІЙ ТРИВОГИ`;
-            descEl.innerText = "Прямої загрози зараз немає. Фоновий рівень безпечний.";
+            descEl.innerText = "Прямої загрози зараз немає. Фоновий рівень безпечний (Штатний режим).";
         }
 
         document.getElementById('avg24hRisk').innerText = `${Math.round(data.avg_24h_risk * 100)}%`;

@@ -22,7 +22,7 @@ THREAT_PATTERNS = [
     ),
     # Strategic Aviation (Tu-95 / Tu-22)
     (
-        r"(ту-95|ту-22|ту-160|tu-95|tu-22|стратегічн|стратегическ|страти|пуски.*х-101|х-555|х-22|пуски.*крилатих)",
+        r"(ту-95|ту-22|ту-160|tu-95|tu-22|стратегічн|стратегическ|\bстрати\b|пуски.*х-101|х-555|х-22|пуски.*крилатих)",
         ThreatType.STRATEGIC_AVIATION
     ),
     # Ballistics / S-300 / Iskander
@@ -32,7 +32,7 @@ THREAT_PATTERNS = [
     ),
     # Shahed / UAV
     (
-        r"(шахед|шахід|шахеды|шахедов|бпла|дрони|дроны|мопед|герань|бплa|безпілотник|geran|shahed)",
+        r"(шахед|шахід|шахеды|шахедов|дрон|дрони|дроны|дронов|дронова|бпла|мопед|герань|бплa|безпілотник|geran|shahed)",
         ThreatType.SHAHED
     ),
     # Sea cruise / Kalibr
@@ -42,7 +42,7 @@ THREAT_PATTERNS = [
     ),
     # Tactical Aviation / KAB
     (
-        r"(каб|каби|кабы|керовані авіаційні|управляемые авиа|су-34|су-35|тактичн.*авіац|тактическ.*авиац|х-59|х-69)",
+        r"(\bкаб\b|\bкаби\b|\bкабы\b|пуск.*каб|керовані авіаційні|управляемые авиа|су-34|су-35|тактичн.*авіац|тактическ.*авиац|х-59|х-69)",
         ThreatType.TACTICAL_AVIATION
     ),
     # Recon UAV
@@ -132,6 +132,10 @@ class LocalThreatParser:
         clean_text = text.strip()
         timestamp = msg_time or datetime.now(timezone.utc)
 
+        # Ignore retrospective daily reports / summaries (e.g. "Збито 165 БпЛА", "станом на 08:00 щодо вторгнення", "У ніч на 9 вересня збито")
+        if re.search(r"(збито\s+\d+|подавлено\s+\d+|підсумки\s+ночі|станом\s+на\s+\d{2}:\d{2}|у\s+ніч\s+на\s+\d{1,2}|протягом\s+минулої\s+доби|втрати\s+ворога)", clean_text, re.IGNORECASE):
+            return None
+
         # 1. Check if ALL CLEAR
         is_clear = any(cp.search(clean_text) for cp in self.clear_patterns)
         
@@ -190,14 +194,16 @@ class LocalThreatParser:
         alert_level = None
         if is_clear:
             alert_level = AlertLevel.CLEAR
-        elif re.search(r"(жовт(ий|а)\s+рівень|жовт(а|ий)\s+тривог|дронов(а|ої)\s+небезпек|загроз(а|и)\s+бпла)", clean_text, re.IGNORECASE):
+        elif re.search(r"(жовт(ий|а)\s+рівень|жовт(а|ий)\s+тривог|дронов(а|ої)\s+небезпек|дронов(а|ої)\s+загроз|загроз(а|и)\s+бпла|загроза\s+ударних\s+бпла|ударні\s+бпла|шахед|шахід|дрон)", clean_text, re.IGNORECASE):
             alert_level = AlertLevel.YELLOW
-        elif re.search(r"(червон(ий|а)\s+рівень|червон(а|ий)\s+тривог|ракетн(а|ої)\s+небезпек|балістичн)", clean_text, re.IGNORECASE):
+            if matched_threat == ThreatType.GENERAL_ALERT:
+                matched_threat = ThreatType.SHAHED
+        elif re.search(r"(червон(ий|а)\s+рівень|червон(а|ий)\s+тривог|ракетн(а|ої)\s+небезпек|балістичн|крилат(а|і)\s+ракет|зліт\s+міг-31к)", clean_text, re.IGNORECASE):
             alert_level = AlertLevel.RED
-        elif re.search(r"(помаранчев(ий|а)\s+рівень|загроз(а|и)\s+каб)", clean_text, re.IGNORECASE):
+        elif re.search(r"(помаранчев(ий|а)\s+рівень|загроз(а|и)\s+каб|пуск(и)?\s+каб|керован(і|их)\s+авіабомб)", clean_text, re.IGNORECASE):
             alert_level = AlertLevel.ORANGE
         else:
-            alert_level = THREAT_TO_ALERT_LEVEL.get(matched_threat, AlertLevel.RED)
+            alert_level = THREAT_TO_ALERT_LEVEL.get(matched_threat, AlertLevel.YELLOW)
 
         return ThreatEvent(
             threat_type=matched_threat,

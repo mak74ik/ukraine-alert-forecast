@@ -157,9 +157,9 @@ def _activate_alert_sync(region_id: str, threat_type: str, source_channel: str, 
     level = alert_level
     if not level:
         try:
-            level = THREAT_TO_ALERT_LEVEL.get(ThreatType(threat_type), AlertLevel.RED).value
+            level = THREAT_TO_ALERT_LEVEL.get(ThreatType(threat_type), AlertLevel.YELLOW).value
         except Exception:
-            level = "RED"
+            level = "YELLOW"
 
     with sqlite3.connect(DB_PATH) as db:
         cursor = db.execute("SELECT id, is_partial, alert_level, threat_type, source_channel FROM alerts WHERE region_id = ? AND is_active = 1", (region_id,))
@@ -174,8 +174,12 @@ def _activate_alert_sync(region_id: str, threat_type: str, source_channel: str, 
             alert_id, existing_partial, existing_level, existing_threat, existing_source = row
             
             # If incoming call is generic telemetry confirmation from open siren API:
-            if source_channel == "Офіційна Телеметрія Тривог" or threat_type == ThreatType.GENERAL_ALERT.value:
-                # If alert already has concrete threat intel (e.g. SHAHED / KAB) or specific level, keep it
+            if source_channel == "Офіційна Телеметрія Тривог":
+                # If existing is generic or its level differs from newly evaluated siren level:
+                if existing_threat == ThreatType.GENERAL_ALERT.value or existing_source == "Офіційна Телеметрія Тривог":
+                    if existing_level != level or existing_threat != threat_type:
+                        db.execute("UPDATE alerts SET alert_level = ?, threat_type = ? WHERE id = ?", (level, threat_type, alert_id))
+                        db.commit()
                 return
 
             # Incoming call is from concrete threat intelligence (Telegram / AF / Radar)

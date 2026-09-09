@@ -175,7 +175,8 @@ class AlertForecaster:
 
         cur_level = active_alerts[region_id].get("alert_level") if is_currently_active else AlertLevel.CLEAR.value
         if not cur_level:
-            cur_level = AlertLevel.RED.value
+            cur_threat_enum = ThreatType(current_threat_type) if current_threat_type in [t.value for t in ThreatType] else ThreatType.GENERAL_ALERT
+            cur_level = THREAT_TO_ALERT_LEVEL.get(cur_threat_enum, AlertLevel.YELLOW).value
         level_meta = ALERT_LEVEL_META.get(AlertLevel(cur_level) if cur_level in [l.value for l in AlertLevel] else AlertLevel.CLEAR, {})
 
         return {
@@ -249,7 +250,7 @@ class AlertForecaster:
                 if is_active and (is_live or (is_past and (now - step_time).total_seconds() < 3600)):
                     lvl = active_alerts[reg_id].get("alert_level")
                     if not lvl:
-                        lvl = "RED"
+                        lvl = AlertLevel.YELLOW.value
                     step_levels[reg_id] = lvl
                 elif final_p >= 0.25:
                     if any(p.threat_type == ThreatType.SHAHED for p in reg_proj) or (22 <= hour or hour <= 4):
@@ -315,7 +316,8 @@ class AlertForecaster:
             if is_active:
                 cur_level = active_alerts[reg_id].get("alert_level")
                 if not cur_level:
-                    cur_level = AlertLevel.RED.value
+                    cur_threat_enum = ThreatType(cur_threat) if cur_threat in [t.value for t in ThreatType] else ThreatType.GENERAL_ALERT
+                    cur_level = THREAT_TO_ALERT_LEVEL.get(cur_threat_enum, AlertLevel.YELLOW).value
             elif cur_prob >= 0.35:
                 if reg_proj and reg_proj[0].threat_type == ThreatType.SHAHED:
                     cur_level = AlertLevel.YELLOW.value

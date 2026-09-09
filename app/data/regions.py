@@ -242,7 +242,7 @@ REGIONS: Dict[str, Dict[str, Any]] = {
         "name_ru": "Хмельницкая область",
         "name_en": "Khmelnytskyi Oblast",
         "short_ua": "Хмельниччина",
-        "aliases": ["хмельниц", "khmelnytskyi", "старокостянтинів", "староконстантинов", "кам'янець-подільськ", "шепетівк", "нетішин"],
+        "aliases": ["хмельниц", "khmelnytskyi", "старокостянтинів", "староконстантинов", "кам'янець-подільськ", "шепетів", "нетішин"],
         "lat": 49.42, "lon": 26.98,
         "neighbors": ["UA-56", "UA-18", "UA-05", "UA-77", "UA-61"],
         "risk_weight": 0.68  # Target airfield Starokostiantyniv

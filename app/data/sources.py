@@ -234,6 +234,12 @@ EXPANDED_PUBLIC_WEB_FEEDS: List[Tuple[str, str, str]] = [
     ('https://t.me/s/poltava_alerts', 'Полтава Моніторинг', 'regional_center'),
     ('https://t.me/s/vinnytsia_alerts', 'Вінниця Сповіщення', 'regional_west'),
     ('https://t.me/s/khmelnytskyi_alerts', 'Хмельницький Радар', 'regional_west'),
+    ('https://t.me/s/suspilnekhmelnytskyi', 'Суспільне Хмельницький (Офіційно)', 'suspilne_west'),
+    ('https://t.me/s/suspilnerivne', 'Суспільне Рівне (Офіційно)', 'suspilne_west'),
+    ('https://t.me/s/suspilnevinnytsia', 'Суспільне Вінниця (Офіційно)', 'suspilne_west'),
+    ('https://t.me/s/suspilnezhytomyr', 'Суспільне Житомир (Офіційно)', 'suspilne_center'),
+    ('https://t.me/s/suspilneternopil', 'Суспільне Тернопіль (Офіційно)', 'suspilne_west'),
+    ('https://t.me/s/suspilnevolyn', 'Суспільне Волинь (Офіційно)', 'suspilne_west'),
     ('https://t.me/s/lviv_alerts', 'Львів Оповіщення', 'regional_west'),
     ('https://t.me/s/volyn_alerts', 'Волинь Інфо', 'regional_west'),
     ('https://t.me/s/cherkasy_alerts', 'Черкаси Оперативний', 'regional_center')

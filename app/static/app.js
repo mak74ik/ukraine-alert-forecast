@@ -1282,6 +1282,21 @@ function initTelegramAuth() {
     if (logoutBtn) {
         logoutBtn.onclick = handleLogout;
     }
+
+    const scanRegionBtn = document.getElementById('btnScanRegionChannels');
+    if (scanRegionBtn) {
+        scanRegionBtn.onclick = handleScanRegionChannels;
+    }
+
+    const scanCustomBtn = document.getElementById('btnScanCustomChannel');
+    if (scanCustomBtn) {
+        scanCustomBtn.onclick = handleScanCustomChannel;
+    }
+
+    const quickScanBtn = document.getElementById('btnQuickScanTg');
+    if (quickScanBtn) {
+        quickScanBtn.onclick = handleScanRegionChannels;
+    }
 }
 
 function handleLogout() {
@@ -1297,6 +1312,7 @@ function handleLogout() {
 function updateAuthHeaderDisplay() {
     const btnText = document.getElementById('tgBtnText');
     const authBtn = document.getElementById('telegramAuthBtn');
+    const quickScanBtn = document.getElementById('btnQuickScanTg');
     if (!btnText || !authBtn) return;
 
     if (currentUserProfile && currentUserProfile.username) {
@@ -1306,8 +1322,161 @@ function updateAuthHeaderDisplay() {
         } else {
             btnText.innerHTML = `@${currentUserProfile.username}`;
         }
+        if (quickScanBtn) quickScanBtn.classList.remove('hidden');
     } else {
         btnText.innerText = 'Telegram Монітор';
+        if (quickScanBtn) quickScanBtn.classList.add('hidden');
+    }
+}
+
+async function handleScanRegionChannels() {
+    const regSelect = document.getElementById('tgRegionSelect');
+    const activeReg = regSelect && regSelect.value ? regSelect.value : (currentUserProfile?.region_id || selectedRegionId || 'UA-32');
+    const regName = regionMetadata[activeReg]?.name_ua || activeReg;
+
+    const btn = document.getElementById('btnScanRegionChannels');
+    const btnText = document.getElementById('btnScanRegionText');
+    const quickBtn = document.getElementById('btnQuickScanTg');
+    const quickText = document.getElementById('btnQuickScanText');
+    const feedback = document.getElementById('tgScanFeedback');
+
+    if (btn) btn.disabled = true;
+    if (btnText) btnText.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Сканування каналів ${regName}...`;
+    if (quickBtn) quickBtn.disabled = true;
+    if (quickText) quickText.innerHTML = `Сканування...`;
+
+    if (feedback) {
+        feedback.classList.remove('hidden');
+        feedback.innerHTML = `<div class="text-sky-400 flex items-center gap-1.5"><i class="fa-solid fa-satellite-dish animate-pulse"></i> Сканування 5 каналів для регіону <strong>${regName}</strong>...</div>`;
+    }
+
+    try {
+        const res = await fetch('/api/auth/scan_region', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                region_id: activeReg,
+                username: currentUserProfile ? currentUserProfile.username : null
+            })
+        });
+
+        const data = await res.json();
+        
+        if (data.status === 'success') {
+            let detailsHtml = '';
+            if (data.channel_results) {
+                detailsHtml = data.channel_results.map(ch => {
+                    const statusIcon = ch.status === 'success' ? '✅' : '⚠️';
+                    const threatsBadge = ch.threats_found > 0 
+                        ? `<span class="text-amber-400 font-bold">${ch.threats_found} загроз</span>`
+                        : `<span class="text-emerald-400">чисто</span>`;
+                    return `<div class="text-[11px] text-slate-300">${statusIcon} <strong>${ch.channel}</strong>: ${ch.messages_found} постів, ${threatsBadge}</div>`;
+                }).join('');
+            }
+
+            if (feedback) {
+                feedback.innerHTML = `
+                    <div class="text-emerald-400 font-bold flex items-center gap-1">
+                        <i class="fa-solid fa-circle-check"></i> Сканування завершено успішно!
+                    </div>
+                    <div class="text-slate-300 text-[11px]">Опрацьовано <strong>${data.total_messages_found}</strong> повідомлень, виявлено <strong>${data.total_threats_found}</strong> подій.</div>
+                    <div class="mt-1 space-y-0.5 border-t border-slate-800 pt-1">${detailsHtml}</div>
+                `;
+            }
+
+            showInAppToast(`Проскановано 5 каналів: знайдено ${data.total_threats_found} загроз`, 'fa-radar', 'text-emerald-400');
+            
+            await loadOverview();
+            await loadRecentLogs();
+            await loadRegionForecast(activeReg);
+        } else {
+            if (feedback) {
+                feedback.innerHTML = `<div class="text-red-400"><i class="fa-solid fa-triangle-exclamation"></i> Помилка: ${data.error || 'Не вдалося виконати сканування'}</div>`;
+            }
+        }
+    } catch (e) {
+        console.error("Scan error:", e);
+        if (feedback) {
+            feedback.innerHTML = `<div class="text-red-400">Помилка мережі при скануванні</div>`;
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+        if (btnText) btnText.innerHTML = `Просканувати 5 каналів області зараз`;
+        if (quickBtn) quickBtn.disabled = false;
+        if (quickText) quickText.innerHTML = `Сканувати ТГ`;
+    }
+}
+
+async function handleScanCustomChannel() {
+    const inp = document.getElementById('tgCustomChannelInput');
+    if (!inp || !inp.value.trim()) {
+        showInAppToast('Введіть посилання або username каналу', 'fa-circle-exclamation', 'text-amber-400');
+        return;
+    }
+
+    const channelVal = inp.value.trim();
+    const btn = document.getElementById('btnScanCustomChannel');
+    const feedback = document.getElementById('tgScanFeedback');
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i>`;
+    }
+
+    if (feedback) {
+        feedback.classList.remove('hidden');
+        feedback.innerHTML = `<div class="text-sky-400"><i class="fa-solid fa-satellite-dish animate-pulse"></i> Сканування ${channelVal}...</div>`;
+    }
+
+    try {
+        const res = await fetch('/api/auth/scan_channel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                channel: channelVal,
+                username: currentUserProfile ? currentUserProfile.username : null
+            })
+        });
+
+        const data = await res.json();
+        if (data.status === 'success') {
+            if (feedback) {
+                let threatsList = '';
+                if (data.threats && data.threats.length > 0) {
+                    threatsList = data.threats.map(t => `<div class="text-[10px] text-amber-300">• [${t.alert_level}] ${t.text}</div>`).join('');
+                } else {
+                    threatsList = `<div class="text-[10px] text-emerald-400">Активних загроз у свіжих постах не виявлено.</div>`;
+                }
+
+                feedback.innerHTML = `
+                    <div class="text-emerald-400 font-bold flex items-center gap-1">
+                        <i class="fa-solid fa-circle-check"></i> Канал ${data.channel} успішно проскановано!
+                    </div>
+                    <div class="text-slate-300 text-[11px]">Знайдено <strong>${data.messages_found}</strong> повідомлень, <strong>${data.threats_found}</strong> загроз.</div>
+                    <div class="mt-1 space-y-0.5 border-t border-slate-800 pt-1">${threatsList}</div>
+                `;
+            }
+
+            showInAppToast(`Канал ${data.channel}: знайдено ${data.threats_found} загроз`, 'fa-circle-check', 'text-emerald-400');
+            inp.value = '';
+
+            await loadOverview();
+            await loadRecentLogs();
+            await loadRegionForecast(selectedRegionId);
+        } else {
+            if (feedback) {
+                feedback.innerHTML = `<div class="text-red-400"><i class="fa-solid fa-triangle-exclamation"></i> Помилка: ${data.error || 'Не вдалося отримати дані каналу'}</div>`;
+            }
+        }
+    } catch (e) {
+        if (feedback) {
+            feedback.innerHTML = `<div class="text-red-400">Помилка запиту сканування каналу</div>`;
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> <span>Сканувати</span>`;
+        }
     }
 }
 

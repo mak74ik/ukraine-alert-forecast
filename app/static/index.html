@@ -223,6 +223,12 @@
                     <span id="tgBtnText">Telegram Монітор</span>
                 </button>
 
+                <!-- Quick Telegram Region Scanner Button -->
+                <button id="btnQuickScanTg" class="px-2.5 py-1.5 text-xs font-semibold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/40 rounded-lg transition flex items-center gap-1.5 shadow-sm" title="Миттєво просканувати канали вашої області">
+                    <i class="fa-solid fa-radar text-xs text-emerald-400"></i>
+                    <span id="btnQuickScanText">Сканувати ТГ</span>
+                </button>
+
                 <!-- Sync Now Button -->
                 <button id="syncNowBtn" class="px-2.5 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition flex items-center gap-1">
                     <i class="fa-solid fa-rotate text-emerald-400"></i> Синхронізувати
@@ -582,6 +588,38 @@
                     </div>
                     <div id="tgChannelsList" class="space-y-2 max-h-[180px] overflow-y-auto pr-1">
                         <!-- Dynamic list of 5 channels -->
+                    </div>
+                </div>
+
+                <!-- Manual Telegram Channel Scanner & Ingestion -->
+                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-sky-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-satellite-dish"></i> Ручне сканування каналів
+                        </span>
+                        <span class="text-[10px] text-slate-400 font-mono">миттєвий аналіз постів</span>
+                    </div>
+
+                    <button id="btnScanRegionChannels" class="w-full py-2 px-3 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-radar"></i>
+                        <span id="btnScanRegionText">Просканувати 5 каналів області зараз</span>
+                    </button>
+
+                    <div class="pt-2 border-t border-slate-800/80">
+                        <label class="block text-[11px] text-slate-300 font-medium mb-1">
+                            Або введіть будь-який інший Telegram-канал вручну:
+                        </label>
+                        <div class="flex items-center gap-2">
+                            <input id="tgCustomChannelInput" type="text" placeholder="@channel або t.me/channel" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 transition">
+                            <button id="btnScanCustomChannel" class="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition flex items-center gap-1">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <span>Сканувати</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Live feedback console -->
+                    <div id="tgScanFeedback" class="hidden p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono space-y-1 max-h-[120px] overflow-y-auto">
                     </div>
                 </div>
 

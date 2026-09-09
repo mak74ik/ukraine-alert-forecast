@@ -14,11 +14,11 @@ REGIONAL_TELEGRAM_CHANNELS: Dict[str, List[Dict[str, Any]]] = {
         {'id': 'kiev_real', 'name': 'Київ Інфо / Реальний Київ', 'username': 'kievreal1', 'url': 'https://t.me/kievreal1', 'category': 'monitoring', 'is_official': False}
     ],
     'UA-32': [
-        {'id': 'koda_gov', 'name': 'Київська ОВА (Офіційно)', 'username': 'koda_gov_ua', 'url': 'https://t.me/koda_gov_ua', 'category': 'official_gov', 'is_official': True},
-        {'id': 'kyivobl_alerts', 'name': 'Київщина Тривога', 'username': 'kyivobl_alerts', 'url': 'https://t.me/kyivobl_alerts', 'category': 'alerts', 'is_official': True},
-        {'id': 'radar_kiev_obl', 'name': 'Радар Київської області', 'username': 'radar_kiev_oblast', 'url': 'https://t.me/radar_kiev_oblast', 'category': 'radar', 'is_official': False},
-        {'id': 'kyivobl_suspilne', 'name': 'Суспільне Київщина', 'username': 'suspilnekyiv', 'url': 'https://t.me/suspilnekyiv', 'category': 'suspilne', 'is_official': True},
-        {'id': 'kiev_operativ', 'name': 'Київ Оперативний', 'username': 'kievoperativ', 'url': 'https://t.me/kievoperativ', 'category': 'monitoring', 'is_official': False}
+        {'id': 'kyivoda', 'name': 'Київська ОВА (Офіційно)', 'username': 'kyivoda', 'url': 'https://t.me/kyivoda', 'category': 'official_gov', 'is_official': True},
+        {'id': 'kyiv_alerts', 'name': 'Оповіщення Київ та область', 'username': 'kyiv_alerts', 'url': 'https://t.me/kyiv_alerts', 'category': 'alerts', 'is_official': True},
+        {'id': 'kievreal1', 'name': 'Реальний Київ / Область', 'username': 'kievreal1', 'url': 'https://t.me/kievreal1', 'category': 'monitoring', 'is_official': False},
+        {'id': 'kpszsu', 'name': 'ПС ЗСУ (Київський напрямок)', 'username': 'kpszsu', 'url': 'https://t.me/kpszsu', 'category': 'radar', 'is_official': True},
+        {'id': 'radarradar_ua', 'name': 'Радар Інфо (Північ / Центр)', 'username': 'radarradar_ua', 'url': 'https://t.me/radarradar_ua', 'category': 'radar', 'is_official': False}
     ],
     'UA-63': [
         {'id': 'kharkiv_synegubov', 'name': 'Олег Синєгубов (Харківська ОВА)', 'username': 'synegubov', 'url': 'https://t.me/synegubov', 'category': 'official_gov', 'is_official': True},

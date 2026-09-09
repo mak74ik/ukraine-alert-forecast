@@ -173,6 +173,11 @@ class AlertForecaster:
         avg_24h_risk = (sum(future_probs) / len(future_probs)) if future_probs else 0.15
         max_24h_risk = max(future_probs) if future_probs else 0.25
 
+        cur_level = active_alerts[region_id].get("alert_level") if is_currently_active else AlertLevel.CLEAR.value
+        if not cur_level:
+            cur_level = AlertLevel.RED.value
+        level_meta = ALERT_LEVEL_META.get(AlertLevel(cur_level) if cur_level in [l.value for l in AlertLevel] else AlertLevel.CLEAR, {})
+
         return {
             "region_id": region_id,
             "region_name": REGIONS.get(region_id, {}).get("name_ua", region_id),
@@ -181,6 +186,10 @@ class AlertForecaster:
             "is_partial": is_partial,
             "sub_regions": sub_regions,
             "current_threat": current_threat_type if is_currently_active else None,
+            "alert_level": cur_level,
+            "alert_level_title": level_meta.get("title", "Спокійно"),
+            "alert_level_color": level_meta.get("color", "#15803d"),
+            "alert_level_rule": level_meta.get("rule", "Штатний режим"),
             "avg_24h_risk": round(avg_24h_risk, 3),
             "max_24h_risk": round(max_24h_risk, 3),
             "high_risk_windows": formatted_windows,

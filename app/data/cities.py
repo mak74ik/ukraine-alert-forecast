@@ -130,7 +130,7 @@ CITIES_DATA: Dict[str, Dict[str, Any]] = {
     },
     "lozova": {
         "name_ua": "м. Лозова / Красноград", "region_id": "UA-63", "lat": 48.890, "lon": 36.310,
-        "aliases": ["лозов", "лозової", "лозовая", "красноград", "берестин", "первомайськ", "златопіль", "близнюки"]
+        "aliases": ["лозов", "лозів", "лозової", "лозівськ", "лозовая", "красноград", "берестин", "первомайськ", "златопіль", "близнюки"]
     },
     "derhachi_lyptsi": {
         "name_ua": "Дергачі / Липці / Богодухів", "region_id": "UA-63", "lat": 50.110, "lon": 36.120,
@@ -230,10 +230,10 @@ CITIES_DATA: Dict[str, Dict[str, Any]] = {
 
 def find_sub_regions_by_text(text: str) -> List[Dict[str, Any]]:
     """Identifies specific cities, raions or landmarks mentioned in the message."""
-    text_lower = text.lower()
+    text_clean = text.lower().replace("’", "'").replace("‘", "'").replace("`", "'")
     matched = []
     for city_key, data in CITIES_DATA.items():
-        if any(alias in text_lower for alias in data["aliases"]):
+        if any(alias in text_clean for alias in data["aliases"]):
             matched.append({
                 "key": city_key,
                 "name_ua": data["name_ua"],

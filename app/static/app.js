@@ -743,12 +743,51 @@ function selectRegion(regionId) {
 }
 
 // 8. Live Feed & Threat Logs
+const TELEGRAM_CHANNEL_URLS = {
+    "ПС ЗСУ (Офіційно)": "https://t.me/kpszsu",
+    "Оповіщення України": "https://t.me/air_alert_ua",
+    "ДСНС України (Офіційно)": "https://t.me/DSNS_GOV_UA",
+    "Генштаб ЗСУ": "https://t.me/GeneralStaffZSU",
+    "Оперативний ЗСУ": "https://t.me/operativnoZSU",
+    "Николаевский Ванёк": "https://t.me/vanek_nikolaev",
+    "Радар Інфо": "https://t.me/radarradar_ua",
+    "Військовий Монітор": "https://t.me/war_monitor",
+    "єРадар ППО": "https://t.me/eRadarrua",
+    "Monitor War UA": "https://t.me/monitorwarr",
+    "Радар Ракета / БПЛА": "https://t.me/radar_raketa",
+    "U-Radar Україна": "https://t.me/u_radar",
+    "Київ Оперативний": "https://t.me/kievreal1",
+    "Харків Тривога": "https://t.me/kharkiv_alerts",
+    "Дніпро Оперативний": "https://t.me/dnipro_alerts",
+    "Одеса Офіційно": "https://t.me/odesa_alerts",
+    "Запоріжжя Інфо": "https://t.me/zaporizhzhia_alerts",
+    "Миколаїв Моніторинг": "https://t.me/mykolaiv_alerts",
+    "Суми Оповіщення": "https://t.me/sumy_alerts",
+    "Чернігів Інфо": "https://t.me/chernihiv_alerts",
+    "Полтава Моніторинг": "https://t.me/poltava_alerts",
+    "Вінниця Сповіщення": "https://t.me/vinnytsia_alerts",
+    "Хмельницький Радар": "https://t.me/khmelnytskyi_alerts",
+    "Львів Оповіщення": "https://t.me/lviv_alerts",
+    "Волинь Інфо": "https://t.me/volyn_alerts",
+    "Черкаси Оперативний": "https://t.me/cherkasy_alerts"
+};
+
 async function loadRecentLogs() {
     try {
-        const res = await fetch('/api/logs?limit=30');
+        const res = await fetch('/api/logs?limit=40');
         const logs = await res.json();
         const container = document.getElementById('threatFeedContainer');
         container.innerHTML = '';
+
+        if (!logs || logs.length === 0) {
+            container.innerHTML = `
+                <div class="py-8 text-center text-xs text-slate-400 bg-slate-900/40 rounded-xl border border-slate-800/60 flex flex-col items-center justify-center gap-2">
+                    <i class="fa-solid fa-satellite-dish animate-pulse text-sky-400 text-lg"></i>
+                    <span>Очікування нових повідомлень з 26 каналів моніторингу... Стрічка оновлюється наживо.</span>
+                </div>
+            `;
+            return;
+        }
 
         logs.forEach(log => appendLogItem(log, false));
     } catch (e) {
@@ -759,11 +798,32 @@ async function loadRecentLogs() {
 function appendLogItem(log, prepend = true) {
     const container = document.getElementById('threatFeedContainer');
     if (!container) return;
+
+    // Clear empty state placeholder if present
+    const emptyPlaceholder = container.querySelector('.fa-satellite-dish');
+    if (emptyPlaceholder && emptyPlaceholder.parentElement) {
+        container.innerHTML = '';
+    }
+
     const item = document.createElement('div');
     
     const isClear = log.is_clear;
-    const badgeColor = isClear ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30';
-    const badgeText = isClear ? 'ВІДБІЙ' : (log.threat_type || 'ЗАГРОЗА');
+    let badgeClass = 'bg-red-500/20 text-red-300 border-red-500/40';
+    let badgeText = '🔴 ТРИВОГА';
+
+    if (isClear) {
+        badgeClass = 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+        badgeText = '🟢 ВІДБІЙ';
+    } else if (log.threat_type === 'SHAHED' || log.threat_type === 'RECON_UAV') {
+        badgeClass = 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40';
+        badgeText = '🟡 ЖОВТИЙ (БПЛА)';
+    } else if (log.threat_type === 'TACTICAL_KAB' || log.threat_type === 'TACTICAL_AVIATION') {
+        badgeClass = 'bg-orange-500/20 text-orange-300 border-orange-500/40';
+        badgeText = '🟠 ПОМАРАНЧЕВИЙ (КАБ)';
+    } else if (log.threat_type === 'BALLISTIC' || log.threat_type === 'MIG31K' || log.threat_type === 'STRATEGIC_TU') {
+        badgeClass = 'bg-red-500/20 text-red-300 border-red-500/40';
+        badgeText = '🔴 ЧЕРВОНИЙ (РАКЕТИ)';
+    }
 
     item.className = "p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs flex flex-col gap-1.5 transition-all hover:border-slate-700 shadow-sm";
     
@@ -775,6 +835,15 @@ function appendLogItem(log, prepend = true) {
         subRegionBadge = `<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">📍 ${names}</span>`;
     }
 
+    let regionsBadge = '';
+    if (log.region_ids) {
+        const rIds = typeof log.region_ids === 'string' ? log.region_ids.split(',') : log.region_ids;
+        const validNames = rIds.map(id => regionMetadata[id.trim()] ? regionMetadata[id.trim()].short_ua : null).filter(Boolean);
+        if (validNames.length > 0 && validNames.length <= 4) {
+            regionsBadge = `<span class="px-2 py-0.5 text-[10px] font-medium rounded-full bg-slate-800 text-slate-300 border border-slate-700">🇺🇦 ${validNames.join(', ')}</span>`;
+        }
+    }
+
     const channelIcons = {
         "ПС ЗСУ (Офіційно)": "fa-shield-halved text-blue-400",
         "Оповіщення України": "fa-bullhorn text-red-400",
@@ -784,18 +853,26 @@ function appendLogItem(log, prepend = true) {
         "Радар Інфо": "fa-radar text-yellow-400",
         "Оперативний ЗСУ": "fa-bolt text-amber-400",
         "Військовий Монітор": "fa-crosshairs text-purple-400",
-        "єРадар ППО": "fa-satellite text-blue-400"
+        "єРадар ППО": "fa-satellite text-blue-400",
+        "Monitor War UA": "https://t.me/monitorwarr",
+        "Черкаси Оперативний": "fa-tower-broadcast text-emerald-400"
     };
 
     const iconClass = channelIcons[log.channel] || "fa-satellite-dish text-slate-400";
+    const chUrl = TELEGRAM_CHANNEL_URLS[log.channel];
+
+    const sourceEl = chUrl 
+        ? `<a href="${chUrl}" target="_blank" rel="noopener" class="font-bold text-sky-400 hover:text-sky-300 hover:underline flex items-center gap-1 transition" title="Відкрити канал в Telegram">${log.channel} <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i></a>`
+        : `<span class="font-bold text-slate-200">${log.channel || 'Моніторинг'}</span>`;
 
     item.innerHTML = `
         <div class="flex items-center justify-between gap-2 flex-wrap">
             <div class="flex items-center gap-1.5 flex-wrap">
                 <i class="fa-solid ${iconClass} text-xs"></i>
-                <span class="font-bold text-slate-200">${log.channel || 'Моніторинг'}</span>
-                <span class="px-2 py-0.5 text-[10px] font-bold rounded-full ${badgeColor} border">${badgeText}</span>
+                ${sourceEl}
+                <span class="px-2 py-0.5 text-[10px] font-bold rounded-full ${badgeClass} border">${badgeText}</span>
                 ${subRegionBadge}
+                ${regionsBadge}
             </div>
             <span class="text-[10px] text-slate-400 font-mono">${timeStr}</span>
         </div>
@@ -805,7 +882,7 @@ function appendLogItem(log, prepend = true) {
 
     if (prepend) {
         container.insertBefore(item, container.firstChild);
-        if (container.children.length > 40) {
+        if (container.children.length > 50) {
             container.removeChild(container.lastChild);
         }
     } else {

@@ -1,3 +1,5 @@
+from app.api.auth import router as auth_router
+from app.data.sources import get_channels_by_region
 """
 FastAPI REST routes for alerts, 24h forecasts, live logs, matrix scrubber, radar tracks, and simulation triggers.
 """
@@ -14,6 +16,7 @@ from app.collector.threat_types import ThreatType, THREAT_DETAILS
 from app.api.ws import ws_manager
 
 router = APIRouter(prefix="/api")
+router.include_router(auth_router)
 forecaster = AlertForecaster()
 
 monitor_service = None
@@ -129,4 +132,14 @@ async def simulate_event(req: SimulateRequest):
         "event": event.to_dict(),
         "active_regions_count": len(event.region_ids),
         "radar_targets": radar_service.get_live_radar_tracks()
+    }
+
+@router.get("/channels/{region_id}")
+async def get_region_channels(region_id: str):
+    if region_id not in REGIONS:
+        raise HTTPException(status_code=404, detail="Region not found")
+    return {
+        "region_id": region_id,
+        "name_ua": REGIONS[region_id]["name_ua"],
+        "channels": get_channels_by_region(region_id)
     }

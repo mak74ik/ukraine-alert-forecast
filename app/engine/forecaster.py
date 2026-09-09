@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Optional
 
 from app.data.regions import REGIONS
-from app.collector.threat_types import ThreatType, THREAT_DETAILS
+from app.collector.threat_types import ThreatType, THREAT_DETAILS, AlertLevel, ALERT_LEVEL_META, THREAT_TO_ALERT_LEVEL
 from app.data.seed_history import calculate_regional_base_risk
 from app.engine.trajectory import project_threat_trajectory, ThreatProjection
 
@@ -209,6 +209,7 @@ class AlertForecaster:
             hour = step_time.hour
 
             step_regions = {}
+            step_levels = {}
             step_partials = {}
             for reg_id, meta in REGIONS.items():
                 is_active = reg_id in active_alerts
@@ -230,9 +231,28 @@ class AlertForecaster:
                     if 8 <= hour <= 20 and reg_id in ["UA-63", "UA-23", "UA-14", "UA-59", "UA-65"]:
                         prob = max(prob, 0.60)
 
-                step_regions[reg_id] = round(min(0.98, max(0.02, prob)), 3)
+                final_p = round(min(0.98, max(0.02, prob)), 3)
+                step_regions[reg_id] = final_p
                 if is_part and is_live:
                     step_partials[reg_id] = True
+
+                # Determine Alert Level (Sept 1 standard)
+                if is_active and (is_live or (is_past and (now - step_time).total_seconds() < 3600)):
+                    lvl = active_alerts[reg_id].get("alert_level")
+                    if not lvl:
+                        lvl = "RED"
+                    step_levels[reg_id] = lvl
+                elif final_p >= 0.25:
+                    if any(p.threat_type == ThreatType.SHAHED for p in reg_proj) or (22 <= hour or hour <= 4):
+                        step_levels[reg_id] = AlertLevel.YELLOW.value
+                    elif any(p.threat_type in (ThreatType.BALLISTIC, ThreatType.MIG31K) for p in reg_proj):
+                        step_levels[reg_id] = AlertLevel.RED.value
+                    elif any(p.threat_type in (ThreatType.TACTICAL_KAB, ThreatType.TACTICAL_AVIATION) for p in reg_proj) or (8 <= hour <= 20 and reg_id in ["UA-63", "UA-23", "UA-14", "UA-59", "UA-65"]):
+                        step_levels[reg_id] = AlertLevel.ORANGE.value
+                    else:
+                        step_levels[reg_id] = AlertLevel.YELLOW.value if final_p < 0.60 else AlertLevel.RED.value
+                else:
+                    step_levels[reg_id] = AlertLevel.CLEAR.value
 
             time_steps.append({
                 "time": step_time.isoformat(),
@@ -240,6 +260,7 @@ class AlertForecaster:
                 "is_past": is_past,
                 "is_live": is_live,
                 "regions_risk": step_regions,
+                "regions_alert_level": step_levels,
                 "partials": step_partials
             })
 
@@ -281,6 +302,23 @@ class AlertForecaster:
                 reg_proj[0].threat_type.value if reg_proj else ThreatType.GENERAL_ALERT.value
             )
 
+            # Alert Level from active DB or projection
+            if is_active:
+                cur_level = active_alerts[reg_id].get("alert_level")
+                if not cur_level:
+                    cur_level = AlertLevel.RED.value
+            elif cur_prob >= 0.35:
+                if reg_proj and reg_proj[0].threat_type == ThreatType.SHAHED:
+                    cur_level = AlertLevel.YELLOW.value
+                elif reg_proj and reg_proj[0].threat_type in (ThreatType.BALLISTIC, ThreatType.MIG31K):
+                    cur_level = AlertLevel.RED.value
+                else:
+                    cur_level = AlertLevel.YELLOW.value
+            else:
+                cur_level = AlertLevel.CLEAR.value
+
+            level_meta = ALERT_LEVEL_META.get(AlertLevel(cur_level) if cur_level in [l.value for l in AlertLevel] else AlertLevel.CLEAR, {})
+
             regions_summary.append({
                 "id": reg_id,
                 "name_ua": meta["name_ua"],
@@ -293,14 +331,41 @@ class AlertForecaster:
                 "sub_regions": sub_regions,
                 "current_probability": round(cur_prob, 3),
                 "threat_type": cur_threat,
+                "alert_level": cur_level,
+                "alert_level_title": level_meta.get("title", "Спокійно"),
+                "alert_level_color": level_meta.get("color", "#15803d"),
+                "alert_level_rule": level_meta.get("rule", "Штатний режим"),
                 "threat_title": THREAT_DETAILS.get(ThreatType(cur_threat) if cur_threat in [t.value for t in ThreatType] else ThreatType.GENERAL_ALERT, {}).get("title", "Загроза")
             })
 
         active_count = sum(1 for r in regions_summary if r["is_active"])
+        
+        # Calculate near-term predicted alerts for upcoming 60-120 minutes
+        near_term = []
+        for reg_id, meta in REGIONS.items():
+            if reg_id in active_alerts:
+                continue
+            projs = [p for p in recent_projections if p.target_region_id == reg_id and p.eta_start > now]
+            if projs:
+                p = projs[0]
+                eta_min = max(2, int((p.eta_start - now).total_seconds() / 60))
+                near_term.append({
+                    "region_id": reg_id,
+                    "name_ua": meta["name_ua"],
+                    "threat_type": p.threat_type.value,
+                    "threat_title": THREAT_DETAILS.get(p.threat_type, {}).get("title", "Загроза"),
+                    "alert_level": AlertLevel.YELLOW.value if p.threat_type == ThreatType.SHAHED else AlertLevel.RED.value,
+                    "eta_minutes": eta_min,
+                    "probability": round(p.probability, 2),
+                    "confidence": p.confidence
+                })
+        near_term.sort(key=lambda x: x["eta_minutes"])
+
         return {
             "timestamp": now.isoformat(),
             "active_alerts_count": active_count,
             "total_regions": len(regions_summary),
             "regions": regions_summary,
-            "hotspots": all_hotspots
+            "hotspots": all_hotspots,
+            "near_term_predictions": near_term[:6]
         }

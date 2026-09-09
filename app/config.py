@@ -4,7 +4,7 @@ from typing import List
 
 class Settings:
     APP_NAME: str = "UA Air Raid Alert Forecast & Monitor"
-    APP_VERSION: str = "2.0.0 (Open Standalone Edition)"
+    APP_VERSION: str = "2.1.0 (September 1 Reform & 24H Radar)"
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8080"))
     DEBUG: bool = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")

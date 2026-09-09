@@ -17,7 +17,7 @@ from app.config import settings
 from app.data.regions import REGIONS
 from app.data.sources import EXPANDED_PUBLIC_WEB_FEEDS, OPEN_ALERT_APIS
 from app.collector.parser import LocalThreatParser, ThreatEvent
-from app.collector.threat_types import ThreatType
+from app.collector.threat_types import ThreatType, AlertLevel
 from app.engine.trajectory import project_threat_trajectory, ThreatProjection
 from app.database import activate_alert, clear_alert, save_threat_log
 
@@ -95,6 +95,22 @@ class OpenWebAlertMonitor:
             t.cancel()
         logger.info("Multi-source monitoring stopped.")
 
+    async def _is_missile_threat_active(self) -> bool:
+        """Checks whether a ballistic, MiG-31K, or cruise missile alert is currently ongoing."""
+        try:
+            from app.database import get_active_alerts
+            alerts = await get_active_alerts()
+            for a in alerts.values():
+                t = a.get("threat_type")
+                lvl = a.get("alert_level")
+                if t in (ThreatType.MIG31K.value, ThreatType.STRATEGIC_AVIATION.value, ThreatType.STRATEGIC_TU.value, ThreatType.BALLISTIC.value, ThreatType.SEA_CRUISE.value):
+                    return True
+                if lvl == AlertLevel.RED.value and a.get("region_id") not in ("UA-43", "UA-44", "UA-14"):
+                    return True
+        except Exception:
+            pass
+        return False
+
     async def sync_real_active_alerts(self) -> bool:
         """Polls official siren state telemetry with automatic failover."""
         headers = {
@@ -102,6 +118,8 @@ class OpenWebAlertMonitor:
             "Accept": "application/json"
         }
         
+        missile_active = await self._is_missile_threat_active()
+
         for api_url in OPEN_ALERT_APIS:
             try:
                 timeout = aiohttp.ClientTimeout(total=6)
@@ -122,13 +140,30 @@ class OpenWebAlertMonitor:
                                     is_alert = bool(info.get("alertnow", False))
                                     if is_alert:
                                         now_active.add(reg_id)
+
+                                        # September 1 reform level assignment:
+                                        if reg_id in ["UA-43", "UA-44", "UA-14"]:
+                                            assigned_level = AlertLevel.RED.value
+                                            assigned_threat = ThreatType.BALLISTIC.value if reg_id == "UA-43" else ThreatType.GENERAL_ALERT.value
+                                            assigned_desc = f"Офіційна повітряна тривога ({state_name})"
+                                        elif missile_active:
+                                            assigned_level = AlertLevel.RED.value
+                                            assigned_threat = ThreatType.BALLISTIC.value
+                                            assigned_desc = f"Офіційна повітряна тривога (Ракетна/балістична небезпека) ({state_name})"
+                                        else:
+                                            # Inland / central / western sirens during drone activity are YELLOW
+                                            assigned_level = AlertLevel.YELLOW.value
+                                            assigned_threat = ThreatType.SHAHED.value
+                                            assigned_desc = f"Офіційна повітряна тривога (Дронова загроза - Жовтий рівень) ({state_name})"
+
                                         await activate_alert(
                                             region_id=reg_id,
-                                            threat_type=ThreatType.GENERAL_ALERT.value,
+                                            threat_type=assigned_threat,
                                             source_channel="Офіційна Телеметрія Тривог",
-                                            description=f"Офіційна повітряна тривога ({state_name})",
+                                            description=assigned_desc,
                                             is_partial=False,
-                                            sub_regions=[]
+                                            sub_regions=[],
+                                            alert_level=assigned_level
                                         )
                                     else:
                                         if reg_id not in ["UA-43", "UA-44"]:
@@ -136,7 +171,7 @@ class OpenWebAlertMonitor:
 
                                 # Luhansk & Crimea are in permanent state
                                 now_active.add("UA-44")
-                                await activate_alert("UA-44", ThreatType.GENERAL_ALERT.value, "Моніторинг", "Постійна тривога (Луганщина)", is_partial=False)
+                                await activate_alert("UA-44", ThreatType.GENERAL_ALERT.value, "Моніторинг", "Постійна тривога (Луганщина)", is_partial=False, alert_level=AlertLevel.RED.value)
 
                                 self.last_sync_time = datetime.now(KYIV_TZ)
                                 self.consecutive_network_errors = 0

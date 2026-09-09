@@ -73,7 +73,7 @@ THREAT_TO_ALERT_LEVEL: Dict[ThreatType, AlertLevel] = {
     ThreatType.SEA_CRUISE: AlertLevel.RED,
     ThreatType.TACTICAL_AVIATION: AlertLevel.ORANGE,
     ThreatType.TACTICAL_KAB: AlertLevel.ORANGE,
-    ThreatType.GENERAL_ALERT: AlertLevel.RED,
+    ThreatType.GENERAL_ALERT: AlertLevel.YELLOW,
     ThreatType.ALL_CLEAR: AlertLevel.CLEAR,
 }
 
@@ -142,12 +142,12 @@ THREAT_DETAILS: Dict[str, Dict[str, Any]] = {
         "base_risk": 0.40
     },
     ThreatType.GENERAL_ALERT: {
-        "title": "Повітряна тривога",
-        "icon": "fa-triangle-exclamation",
-        "color": "#ef4444",
-        "alert_level": AlertLevel.RED.value,
-        "avg_speed_kmh": 0.0,
-        "avg_duration_min": 45,
+        "title": "Повітряна тривога (Дронова загроза)",
+        "icon": "fa-paper-plane",
+        "color": "#eab308",
+        "alert_level": AlertLevel.YELLOW.value,
+        "avg_speed_kmh": 165.0,
+        "avg_duration_min": 60,
         "base_risk": 0.70
     },
     ThreatType.ALL_CLEAR: {

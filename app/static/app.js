@@ -179,7 +179,7 @@ function getRegionStyle(regionId) {
             };
         }
 
-        const alertLvl = reg.alert_level || 'RED';
+        const alertLvl = reg.alert_level || 'YELLOW';
         if (alertLvl === 'YELLOW') {
             return {
                 fillColor: '#eab308', // Solid Yellow for Shaheds / UAVs
@@ -253,7 +253,7 @@ function renderGeoJsonLayer() {
                         const cities = regData.sub_regions.map(c => c.name_ua).join(', ');
                         tooltipContent += `<br><span class="text-amber-400 font-semibold">⚠️ Локальна загроза: ${cities}</span>`;
                     } else {
-                        const lvl = regData.alert_level || 'RED';
+                        const lvl = regData.alert_level || 'YELLOW';
                         if (lvl === 'YELLOW') {
                             tooltipContent += `<br><span class="text-yellow-400 font-bold">🟡 ЖОВТИЙ РІВЕНЬ (БПЛА)</span><br><span class="text-[10px] text-yellow-200">Робота дозволена за наявності укриття</span>`;
                         } else if (lvl === 'ORANGE') {
@@ -597,7 +597,7 @@ async function loadRegionForecast(regionId) {
         const descEl = document.getElementById('threatDescription');
 
         if (data.is_active_now) {
-            const lvl = data.alert_level || 'RED';
+            const lvl = data.alert_level || 'YELLOW';
             if (lvl === 'YELLOW') {
                 badge.className = "px-3 py-1 text-xs font-bold rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 animate-pulse";
                 badge.innerText = `🟡 ЖОВТИЙ РІВЕНЬ (БПЛА / ДРОНИ)`;

@@ -236,7 +236,8 @@ class OpenWebAlertMonitor:
                     source_channel=event.channel,
                     description=desc,
                     is_partial=event.is_partial,
-                    sub_regions=event.sub_regions
+                    sub_regions=event.sub_regions,
+                    alert_level=event.alert_level.value
                 )
 
         # 3. Kinetic projections

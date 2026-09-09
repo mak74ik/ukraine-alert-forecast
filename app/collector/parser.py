@@ -6,7 +6,7 @@ stem/regex patterns, directional graph heuristics, and sub-regional city/raion e
 import re
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
-from app.collector.threat_types import ThreatType
+from app.collector.threat_types import ThreatType, AlertLevel, THREAT_TO_ALERT_LEVEL
 from app.data.regions import find_regions_by_text, REGIONS
 from app.data.cities import find_sub_regions_by_text
 
@@ -83,9 +83,11 @@ class ThreatEvent:
         confidence: float = 0.85,
         estimated_duration_min: int = 45,
         direction: Optional[str] = None,
-        is_partial: bool = False
+        is_partial: bool = False,
+        alert_level: Optional[AlertLevel] = None
     ):
         self.threat_type = threat_type
+        self.alert_level = alert_level or THREAT_TO_ALERT_LEVEL.get(threat_type, AlertLevel.RED)
         self.is_clear = is_clear
         self.region_ids = region_ids
         self.sub_regions = sub_regions
@@ -110,7 +112,8 @@ class ThreatEvent:
             "timestamp": self.timestamp.isoformat(),
             "confidence": self.confidence,
             "estimated_duration_min": self.estimated_duration_min,
-            "direction": self.direction
+            "direction": self.direction,
+            "alert_level": self.alert_level.value
         }
 
 
@@ -183,6 +186,19 @@ class LocalThreatParser:
         est_duration = duration_map.get(matched_threat, 45)
         confidence = 0.95 if sub_regions else (0.90 if len(region_ids) > 0 else 0.75)
 
+        # Deduce September 1 Alert Level
+        alert_level = None
+        if is_clear:
+            alert_level = AlertLevel.CLEAR
+        elif re.search(r"(жовт(ий|а)\s+рівень|жовт(а|ий)\s+тривог|дронов(а|ої)\s+небезпек|загроз(а|и)\s+бпла)", clean_text, re.IGNORECASE):
+            alert_level = AlertLevel.YELLOW
+        elif re.search(r"(червон(ий|а)\s+рівень|червон(а|ий)\s+тривог|ракетн(а|ої)\s+небезпек|балістичн)", clean_text, re.IGNORECASE):
+            alert_level = AlertLevel.RED
+        elif re.search(r"(помаранчев(ий|а)\s+рівень|загроз(а|и)\s+каб)", clean_text, re.IGNORECASE):
+            alert_level = AlertLevel.ORANGE
+        else:
+            alert_level = THREAT_TO_ALERT_LEVEL.get(matched_threat, AlertLevel.RED)
+
         return ThreatEvent(
             threat_type=matched_threat,
             is_clear=is_clear,
@@ -194,5 +210,6 @@ class LocalThreatParser:
             confidence=confidence,
             estimated_duration_min=est_duration,
             direction=direction,
-            is_partial=is_partial
+            is_partial=is_partial,
+            alert_level=alert_level
         )

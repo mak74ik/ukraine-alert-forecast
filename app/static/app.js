@@ -15,11 +15,16 @@ let radarTracksLayer = null;
 let socket = null;
 let audioEnabled = true;
 let nationalOverview = null;
+let nationalMatrix = null;
+let activeForecastStepIndex = null; // null = LIVE mode, number = 24h forecast index
+let isTimelapsePlaying = false;
+let timelapseTimer = null;
 let regionMetadata = {};
 let fullTimelineData = [];
 let currentTimelineFilter = "all";
 let radarEnabled = true;
 let hoverPointIndex = null;
+let currentUserProfile = { username: null, region_id: 'UA-32', is_subscribed: false, precision_mode: 'standard' };
 
 // Web Audio Synthesizer
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -111,7 +116,48 @@ function initMap() {
 function getRegionStyle(regionId) {
     const isSelected = regionId === selectedRegionId;
 
-    // REAL-TIME LIVE GROUND-TRUTH SIREN MODE (Strict Red = Active, Strict Green = Calm)
+    // 1. FORECAST MODE (24h Scrubber Active)
+    if (activeForecastStepIndex !== null && nationalMatrix && nationalMatrix.steps && nationalMatrix.steps[activeForecastStepIndex]) {
+        const step = nationalMatrix.steps[activeForecastStepIndex];
+        const prob = (step.regions_risk && step.regions_risk[regionId] !== undefined) ? step.regions_risk[regionId] : 0.05;
+        const level = (step.regions_alert_level && step.regions_alert_level[regionId]) ? step.regions_alert_level[regionId] : 'CLEAR';
+
+        if (level === 'YELLOW') {
+            return {
+                fillColor: '#eab308',
+                weight: isSelected ? 3.5 : (regionId === 'UA-30' ? 2.5 : 1.5),
+                opacity: 1,
+                color: isSelected ? '#ffffff' : '#facc15',
+                fillOpacity: Math.min(0.92, Math.max(0.45, 0.35 + prob * 0.55))
+            };
+        } else if (level === 'RED') {
+            return {
+                fillColor: '#ef4444',
+                weight: isSelected ? 3.5 : (regionId === 'UA-30' ? 3 : 1.5),
+                opacity: 1,
+                color: isSelected ? '#ffffff' : '#f87171',
+                fillOpacity: Math.min(0.95, Math.max(0.60, 0.45 + prob * 0.55))
+            };
+        } else if (level === 'ORANGE') {
+            return {
+                fillColor: '#f97316',
+                weight: isSelected ? 3.5 : (regionId === 'UA-30' ? 2.5 : 1.5),
+                opacity: 1,
+                color: isSelected ? '#ffffff' : '#fb923c',
+                fillOpacity: Math.min(0.90, Math.max(0.50, 0.40 + prob * 0.55))
+            };
+        } else {
+            return {
+                fillColor: '#15803d',
+                weight: isSelected ? 3.5 : (regionId === 'UA-30' ? 2 : 1.5),
+                opacity: 1,
+                color: isSelected ? '#ffffff' : (regionId === 'UA-30' ? '#fbbf24' : '#1e293b'),
+                fillOpacity: 0.65
+            };
+        }
+    }
+
+    // 2. LIVE REAL-TIME SIREN MODE (Sept 1 Reform)
     if (!nationalOverview) {
         return { fillColor: '#15803d', weight: isSelected ? 3.5 : 1.5, color: '#334155', fillOpacity: 0.65 };
     }
@@ -121,30 +167,48 @@ function getRegionStyle(regionId) {
         return { fillColor: '#15803d', weight: isSelected ? 3.5 : 1.5, color: '#334155', fillOpacity: 0.65 };
     }
 
-    // STRICT ACTIVE SIREN
     if (reg.is_active) {
         if (reg.is_partial) {
             return {
-                fillColor: '#ea580c', // Orange for partial
+                fillColor: '#ea580c',
                 weight: isSelected ? 3.5 : 2,
                 opacity: 1,
                 color: isSelected ? '#ffffff' : '#f97316',
                 dashArray: '4, 4',
-                fillOpacity: isSelected ? 0.85 : 0.60
+                fillOpacity: isSelected ? 0.85 : 0.65
             };
         }
+
+        const alertLvl = reg.alert_level || 'RED';
+        if (alertLvl === 'YELLOW') {
+            return {
+                fillColor: '#eab308', // Solid Yellow for Shaheds / UAVs
+                weight: isSelected ? 3.5 : (regionId === 'UA-30' ? 3 : 1.8),
+                opacity: 1,
+                color: isSelected ? '#ffffff' : '#facc15',
+                fillOpacity: isSelected ? 0.95 : 0.85
+            };
+        } else if (alertLvl === 'ORANGE') {
+            return {
+                fillColor: '#f97316', // Solid Orange for KABs
+                weight: isSelected ? 3.5 : (regionId === 'UA-30' ? 3 : 1.8),
+                opacity: 1,
+                color: isSelected ? '#ffffff' : '#fb923c',
+                fillOpacity: isSelected ? 0.95 : 0.85
+            };
+        }
+
         return {
-            fillColor: '#ef4444', // Solid Bright Red for siren
-            weight: isSelected ? 3.5 : (regionId === 'UA-30' ? 3 : 1.5),
+            fillColor: '#ef4444', // Solid Bright Red for Missiles
+            weight: isSelected ? 3.5 : (regionId === 'UA-30' ? 3 : 1.8),
             opacity: 1,
             color: isSelected ? '#ffffff' : (regionId === 'UA-30' ? '#ffffff' : '#ef4444'),
-            fillOpacity: isSelected ? 0.90 : 0.70
+            fillOpacity: isSelected ? 0.95 : 0.85
         };
     }
 
-    // STRICT CALM REGION (Solid Green)
     return {
-        fillColor: '#15803d', // Green
+        fillColor: '#15803d',
         weight: isSelected ? 3.5 : (regionId === 'UA-30' ? 2 : 1.5),
         opacity: 1,
         color: isSelected ? '#ffffff' : (regionId === 'UA-30' ? '#fbbf24' : '#1e293b'),
@@ -165,18 +229,42 @@ function renderGeoJsonLayer() {
             const regId = feature.properties.id;
             const name = feature.properties.name;
 
-            const regData = nationalOverview ? nationalOverview.regions.find(r => r.id === regId) : null;
             let tooltipContent = `<strong>${name}</strong>`;
-            
-            if (regData && regData.is_active) {
-                if (regData.is_partial && regData.sub_regions && regData.sub_regions.length > 0) {
-                    const cities = regData.sub_regions.map(c => c.name_ua).join(', ');
-                    tooltipContent += `<br><span class="text-amber-400 font-semibold">⚠️ Локальна загроза: ${cities}</span>`;
+
+            if (activeForecastStepIndex !== null && nationalMatrix && nationalMatrix.steps && nationalMatrix.steps[activeForecastStepIndex]) {
+                const step = nationalMatrix.steps[activeForecastStepIndex];
+                const prob = Math.round(((step.regions_risk && step.regions_risk[regId]) || 0) * 100);
+                const lvl = (step.regions_alert_level && step.regions_alert_level[regId]) || 'CLEAR';
+                
+                tooltipContent += `<br><span class="text-sky-300 font-mono text-[11px]">Прогноз на ${step.time_display}</span>`;
+                if (lvl === 'YELLOW') {
+                    tooltipContent += `<br><span class="text-yellow-300 font-bold">🟡 ЖОВТИЙ РІВЕНЬ (БПЛА) • ${prob}%</span><br><span class="text-[10px] text-yellow-200/80">Робота дозволена за наявності укриття</span>`;
+                } else if (lvl === 'RED') {
+                    tooltipContent += `<br><span class="text-red-400 font-bold">🔴 ЧЕРВОНИЙ РІВЕНЬ (РАКЕТИ) • ${prob}%</span><br><span class="text-[10px] text-red-200/80">Пряма загроза • Негайно в укриття!</span>`;
+                } else if (lvl === 'ORANGE') {
+                    tooltipContent += `<br><span class="text-orange-400 font-bold">🟠 ПОМАРАНЧЕВИЙ (КАБ) • ${prob}%</span>`;
                 } else {
-                    tooltipContent += `<br><span class="text-red-400 font-bold">🔴 ПОВІТРЯНА ТРИВОГА</span>`;
+                    tooltipContent += `<br><span class="text-emerald-400 font-semibold">🟢 Відбій загрози (${prob}% фоновий)</span>`;
                 }
             } else {
-                tooltipContent += `<br><span class="text-emerald-400 font-semibold">🟢 Відбій тривоги</span>`;
+                const regData = nationalOverview ? nationalOverview.regions.find(r => r.id === regId) : null;
+                if (regData && regData.is_active) {
+                    if (regData.is_partial && regData.sub_regions && regData.sub_regions.length > 0) {
+                        const cities = regData.sub_regions.map(c => c.name_ua).join(', ');
+                        tooltipContent += `<br><span class="text-amber-400 font-semibold">⚠️ Локальна загроза: ${cities}</span>`;
+                    } else {
+                        const lvl = regData.alert_level || 'RED';
+                        if (lvl === 'YELLOW') {
+                            tooltipContent += `<br><span class="text-yellow-400 font-bold">🟡 ЖОВТИЙ РІВЕНЬ (БПЛА)</span><br><span class="text-[10px] text-yellow-200">Робота дозволена за наявності укриття</span>`;
+                        } else if (lvl === 'ORANGE') {
+                            tooltipContent += `<br><span class="text-orange-400 font-bold">🟠 ПОМАРАНЧЕВИЙ РІВЕНЬ (КАБ)</span>`;
+                        } else {
+                            tooltipContent += `<br><span class="text-red-400 font-bold">🔴 ЧЕРВОНИЙ РІВЕНЬ (РАКЕТИ)</span><br><span class="text-[10px] text-red-200">Негайно прямуйте в укриття!</span>`;
+                        }
+                    }
+                } else {
+                    tooltipContent += `<br><span class="text-emerald-400 font-semibold">🟢 Відбій тривоги (Штатний режим)</span>`;
+                }
             }
 
             layer.bindTooltip(tooltipContent, {
@@ -601,6 +689,10 @@ async function loadOverview() {
         
         document.getElementById('activeAlertsCounter').innerText = `${nationalOverview.active_alerts_count} / ${nationalOverview.total_regions}`;
         
+        if (nationalOverview.near_term_predictions) {
+            renderNearTermPredictions(nationalOverview.near_term_predictions);
+        }
+        
         renderGeoJsonLayer();
     } catch (e) {
         console.error("Error loading overview:", e);
@@ -836,20 +928,465 @@ function initControls() {
 }
 
 // Global Startup
+
+// ==========================================
+// 11. 24-Hour Predictive Forecast Engine & Map Scrubber
+// ==========================================
+
+function renderNearTermPredictions(predictions) {
+    const container = document.getElementById('nearTermContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (!predictions || predictions.length === 0) {
+        container.innerHTML = '<div class="col-span-full py-1.5 text-center text-xs text-slate-500 italic bg-slate-900/40 rounded-lg border border-slate-800"><i class="fa-solid fa-shield-check text-emerald-500 mr-1"></i> Прямих векторів підльоту на найближчі 60 хв не зафіксовано</div>';
+        return;
+    }
+
+    predictions.forEach(p => {
+        const isRed = p.alert_level === 'RED';
+        const cardBg = isRed ? 'bg-red-950/40 border-red-800/60' : 'bg-yellow-950/40 border-yellow-800/60';
+        const badgeBg = isRed ? 'bg-red-500/20 text-red-300 border-red-500/40' : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40';
+        const icon = isRed ? 'fa-triangle-exclamation text-red-400' : 'fa-paper-plane text-yellow-400';
+
+        const card = document.createElement('div');
+        card.className = `p-2 rounded-xl border ${cardBg} flex items-center justify-between gap-2 shadow-sm transition hover:scale-[1.01] cursor-pointer`;
+        card.onclick = () => selectRegion(p.region_id);
+        card.innerHTML = `
+            <div class="flex items-center gap-2 min-w-0">
+                <i class="fa-solid ${icon} text-sm flex-shrink-0"></i>
+                <div class="min-w-0">
+                    <div class="font-bold text-xs text-white truncate">${p.name_ua}</div>
+                    <div class="text-[10px] text-slate-400 truncate">${p.threat_title}</div>
+                </div>
+            </div>
+            <div class="text-right flex-shrink-0">
+                <span class="px-2 py-0.5 text-[10px] font-mono font-bold rounded-full ${badgeBg} border block">
+                    ~${p.eta_minutes} хв
+                </span>
+                <span class="text-[10px] text-slate-400 font-semibold">${Math.round(p.probability * 100)}%</span>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+async function loadMatrix() {
+    try {
+        const res = await fetch('/api/matrix');
+        if (res.ok) {
+            nationalMatrix = await res.json();
+            const slider = document.getElementById('forecastTimeSlider');
+            if (slider && nationalMatrix.steps) {
+                slider.max = nationalMatrix.steps.length - 1;
+                if (activeForecastStepIndex === null) {
+                    const liveIdx = nationalMatrix.steps.findIndex(s => s.is_live);
+                    slider.value = liveIdx >= 0 ? liveIdx : 0;
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Failed to load matrix:', e);
+    }
+}
+
+function setLiveMode() {
+    activeForecastStepIndex = null;
+    if (isTimelapsePlaying) {
+        stopTimelapse();
+    }
+    const modeEl = document.getElementById('mapModeText');
+    if (modeEl) modeEl.innerText = '● РЕАЛЬНИЙ ЧАС (LIVE)';
+    
+    const badge = document.getElementById('mapTimeLabel');
+    if (badge) {
+        badge.className = 'text-xs font-mono font-bold px-2.5 py-1 rounded bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1.5';
+    }
+
+    const scrubberStatus = document.getElementById('scrubberTimeStatus');
+    if (scrubberStatus) scrubberStatus.innerText = 'Режим: Поточний стан (Live)';
+
+    const scrubberTarget = document.getElementById('scrubberTargetTime');
+    if (scrubberTarget) scrubberTarget.innerText = 'Зараз';
+
+    if (nationalMatrix && nationalMatrix.steps) {
+        const liveIdx = nationalMatrix.steps.findIndex(s => s.is_live);
+        const slider = document.getElementById('forecastTimeSlider');
+        if (slider && liveIdx >= 0) slider.value = liveIdx;
+    }
+
+    if (geojsonLayer) {
+        geojsonLayer.setStyle(feature => getRegionStyle(feature.properties.id));
+    }
+}
+
+function setForecastStep(index) {
+    if (!nationalMatrix || !nationalMatrix.steps || !nationalMatrix.steps[index]) return;
+    activeForecastStepIndex = index;
+    const step = nationalMatrix.steps[index];
+
+    const slider = document.getElementById('forecastTimeSlider');
+    if (slider) slider.value = index;
+
+    const modeEl = document.getElementById('mapModeText');
+    if (modeEl) modeEl.innerText = `ПРОГНОЗ НА ${step.time_display}`;
+
+    const badge = document.getElementById('mapTimeLabel');
+    if (badge) {
+        badge.className = 'text-xs font-mono font-bold px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1.5';
+    }
+
+    const scrubberStatus = document.getElementById('scrubberTimeStatus');
+    if (scrubberStatus) {
+        scrubberStatus.innerText = step.is_live ? 'Режим: Зараз (Live)' : `Прогноз: ${step.time_display}`;
+    }
+
+    const scrubberTarget = document.getElementById('scrubberTargetTime');
+    if (scrubberTarget) {
+        const d = new Date(step.time);
+        scrubberTarget.innerText = d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    if (geojsonLayer) {
+        geojsonLayer.setStyle(feature => getRegionStyle(feature.properties.id));
+    }
+}
+
+function setForecastOffsetMinutes(mins) {
+    if (!nationalMatrix || !nationalMatrix.steps) return;
+    const target = Date.now() + mins * 60 * 1000;
+    let closestIdx = 0;
+    let minDiff = Infinity;
+    nationalMatrix.steps.forEach((s, idx) => {
+        const diff = Math.abs(new Date(s.time).getTime() - target);
+        if (diff < minDiff) {
+            minDiff = diff;
+            closestIdx = idx;
+        }
+    });
+    setForecastStep(closestIdx);
+}
+
+function toggleTimelapse() {
+    if (isTimelapsePlaying) {
+        stopTimelapse();
+    } else {
+        startTimelapse();
+    }
+}
+
+function startTimelapse() {
+    if (!nationalMatrix || !nationalMatrix.steps) return;
+    isTimelapsePlaying = true;
+    const btn = document.getElementById('btnPlayTimelapse');
+    const playText = document.getElementById('playBtnText');
+    if (btn) btn.className = 'px-3 py-1 text-xs font-bold rounded-lg bg-red-600 hover:bg-red-500 text-white transition flex items-center gap-1.5 shadow-sm';
+    if (playText) playText.innerText = 'Пауза';
+
+    const liveIdx = nationalMatrix.steps.findIndex(s => s.is_live);
+    let currentIdx = (activeForecastStepIndex !== null) ? activeForecastStepIndex : (liveIdx >= 0 ? liveIdx : 0);
+
+    timelapseTimer = setInterval(() => {
+        currentIdx++;
+        if (currentIdx >= nationalMatrix.steps.length) {
+            currentIdx = (liveIdx >= 0 ? liveIdx : 0);
+        }
+        setForecastStep(currentIdx);
+    }, 400);
+}
+
+function stopTimelapse() {
+    isTimelapsePlaying = false;
+    if (timelapseTimer) {
+        clearInterval(timelapseTimer);
+        timelapseTimer = null;
+    }
+    const btn = document.getElementById('btnPlayTimelapse');
+    const playText = document.getElementById('playBtnText');
+    if (btn) btn.className = 'px-3 py-1 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition flex items-center gap-1.5 shadow-sm';
+    if (playText) playText.innerText = '24г Таймлапс';
+}
+
+function initScrubberControls() {
+    const btnLive = document.getElementById('fcBtnLive');
+    if (btnLive) btnLive.onclick = setLiveMode;
+
+    const btn30m = document.getElementById('fcBtn30m');
+    if (btn30m) btn30m.onclick = () => setForecastOffsetMinutes(30);
+
+    const btn1h = document.getElementById('fcBtn1h');
+    if (btn1h) btn1h.onclick = () => setForecastOffsetMinutes(60);
+
+    const btn2h = document.getElementById('fcBtn2h');
+    if (btn2h) btn2h.onclick = () => setForecastOffsetMinutes(120);
+
+    const btn4h = document.getElementById('fcBtn4h');
+    if (btn4h) btn4h.onclick = () => setForecastOffsetMinutes(240);
+
+    const btn8h = document.getElementById('fcBtn8h');
+    if (btn8h) btn8h.onclick = () => setForecastOffsetMinutes(480);
+
+    const btn12h = document.getElementById('fcBtn12h');
+    if (btn12h) btn12h.onclick = () => setForecastOffsetMinutes(720);
+
+    const btn24h = document.getElementById('fcBtn24h');
+    if (btn24h) btn24h.onclick = () => setForecastOffsetMinutes(1440);
+
+    const btnPlay = document.getElementById('btnPlayTimelapse');
+    if (btnPlay) btnPlay.onclick = toggleTimelapse;
+
+    const slider = document.getElementById('forecastTimeSlider');
+    if (slider) {
+        slider.oninput = (e) => {
+            if (isTimelapsePlaying) stopTimelapse();
+            setForecastStep(parseInt(e.target.value));
+        };
+    }
+}
+
+// ==========================================
+// 12. Lightweight Native Telegram Auth & Channels Modal
+// ==========================================
+
+
+function showInAppToast(message, icon = "fa-circle-check", color = "text-emerald-400") {
+    let toast = document.getElementById('inAppToast');
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'inAppToast';
+        toast.className = 'fixed bottom-6 right-6 z-50 bg-slate-900/95 border border-slate-700 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-sm text-white transition-all duration-300 transform translate-y-12 opacity-0 pointer-events-none';
+        document.body.appendChild(toast);
+    }
+    toast.innerHTML = `<i class="fa-solid ${icon} ${color} text-lg"></i><span class="font-medium">${message}</span>`;
+    toast.classList.remove('translate-y-12', 'opacity-0', 'pointer-events-none');
+    setTimeout(() => {
+        toast.classList.add('translate-y-12', 'opacity-0', 'pointer-events-none');
+    }, 3500);
+}
+function initTelegramAuth() {
+    try {
+        const saved = localStorage.getItem('ua_alert_user_profile');
+        if (saved) {
+            currentUserProfile = JSON.parse(saved);
+            updateAuthHeaderDisplay();
+        }
+    } catch (e) {}
+
+    const authBtn = document.getElementById('telegramAuthBtn');
+    if (authBtn) {
+        authBtn.onclick = openTelegramModal;
+    }
+
+    const closeBtn = document.getElementById('closeModalBtn');
+    if (closeBtn) {
+        closeBtn.onclick = closeTelegramModal;
+    }
+
+    const regSelect = document.getElementById('tgRegionSelect');
+    if (regSelect) {
+        regSelect.onchange = (e) => loadRegionChannels(e.target.value);
+    }
+
+    const confirmBtn = document.getElementById('btnConfirmSub');
+    if (confirmBtn) {
+        confirmBtn.onclick = handleConfirmSubscription;
+    }
+
+    const logoutBtn = document.getElementById('btnTgLogout');
+    if (logoutBtn) {
+        logoutBtn.onclick = handleLogout;
+    }
+}
+
+function handleLogout() {
+    currentUserProfile = { username: null, region_id: 'UA-32', is_subscribed: false, precision_mode: 'standard' };
+    try {
+        localStorage.removeItem('ua_alert_user_profile');
+    } catch (e) {}
+    updateAuthHeaderDisplay();
+    openTelegramModal();
+    showInAppToast('Ви вийшли з облікового запису', 'fa-arrow-right-from-bracket', 'text-slate-400');
+}
+
+function updateAuthHeaderDisplay() {
+    const btnText = document.getElementById('tgBtnText');
+    const authBtn = document.getElementById('telegramAuthBtn');
+    if (!btnText || !authBtn) return;
+
+    if (currentUserProfile && currentUserProfile.username) {
+        if (currentUserProfile.is_subscribed) {
+            btnText.innerHTML = `@${currentUserProfile.username} <span class="text-amber-400 font-bold ml-1">⚡ Ultra</span>`;
+            authBtn.className = 'px-3 py-1.5 text-xs font-semibold bg-emerald-950/40 hover:bg-emerald-950/60 text-emerald-300 border border-emerald-500/50 rounded-lg transition flex items-center gap-1.5 shadow-sm';
+        } else {
+            btnText.innerHTML = `@${currentUserProfile.username}`;
+        }
+    } else {
+        btnText.innerText = 'Telegram Монітор';
+    }
+}
+
+async function openTelegramModal() {
+    const modal = document.getElementById('telegramModal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+
+    const regSelect = document.getElementById('tgRegionSelect');
+    if (regSelect && regSelect.options.length === 0) {
+        Object.keys(regionMetadata).forEach(regId => {
+            const opt = document.createElement('option');
+            opt.value = regId;
+            opt.innerText = regionMetadata[regId].name_ua;
+            if (regId === (currentUserProfile.region_id || selectedRegionId)) opt.selected = true;
+            regSelect.appendChild(opt);
+        });
+    }
+
+    const profileCard = document.getElementById('tgProfileCard');
+    const inputSec = document.getElementById('tgInputSection');
+    const userInp = document.getElementById('tgUsernameInput');
+    const confirmText = document.getElementById('btnConfirmText');
+
+    if (currentUserProfile && currentUserProfile.username) {
+        if (profileCard) profileCard.classList.remove('hidden');
+        if (inputSec) inputSec.classList.add('hidden');
+        const pUname = document.getElementById('tgProfileUsername');
+        if (pUname) pUname.innerText = '@' + currentUserProfile.username;
+        const pAvatar = document.getElementById('tgUserAvatar');
+        if (pAvatar) pAvatar.innerText = currentUserProfile.username.substring(0, 2).toUpperCase();
+        const pReg = document.getElementById('tgProfileRegionLabel');
+        if (pReg) pReg.innerText = regionMetadata[currentUserProfile.region_id]?.name_ua || 'Обрана область';
+        if (confirmText) confirmText.innerText = 'Оновити канали та статус';
+    } else {
+        if (profileCard) profileCard.classList.add('hidden');
+        if (inputSec) inputSec.classList.remove('hidden');
+        if (userInp) userInp.value = '';
+        if (confirmText) confirmText.innerText = 'Зберегти та увімкнути Ultra-Precision';
+    }
+
+    const activeReg = regSelect ? regSelect.value : (currentUserProfile.region_id || selectedRegionId);
+    if (regSelect) regSelect.value = activeReg;
+    await loadRegionChannels(activeReg);
+}
+
+function closeTelegramModal() {
+    const modal = document.getElementById('telegramModal');
+    if (modal) modal.classList.add('hidden');
+}
+
+async function loadRegionChannels(regId) {
+    const container = document.getElementById('tgChannelsList');
+    if (!container) return;
+    container.innerHTML = '<div class="py-2 text-center text-xs text-slate-400"><i class="fa-solid fa-spinner animate-spin mr-1"></i> Завантаження каналів області...</div>';
+
+    try {
+        const res = await fetch(`/api/channels/${regId}`);
+        const data = await res.json();
+        container.innerHTML = '';
+
+        if (!data.channels || data.channels.length === 0) {
+            container.innerHTML = '<div class="text-xs text-slate-400">Канали відсутні</div>';
+            return;
+        }
+
+        data.channels.forEach(ch => {
+            const isOff = ch.is_official;
+            const badge = isOff 
+                ? '<span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/40 font-semibold">Офіційний</span>'
+                : '<span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">Радар / Монітор</span>';
+
+            const item = document.createElement('div');
+            item.className = 'p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-2 shadow-sm';
+            item.innerHTML = `
+                <div class="min-w-0">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="font-bold text-xs text-white truncate">${ch.name}</span>
+                        ${badge}
+                    </div>
+                    <span class="text-[11px] text-slate-400 font-mono">@${ch.username}</span>
+                </div>
+                <a href="${ch.url}" target="_blank" class="flex-shrink-0 px-2.5 py-1 text-[11px] font-semibold bg-sky-600/20 hover:bg-sky-600/30 text-sky-400 border border-sky-500/30 rounded-lg transition flex items-center gap-1">
+                    <span>Відкрити</span>
+                    <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
+                </a>
+            `;
+            container.appendChild(item);
+        });
+    } catch (e) {
+        container.innerHTML = '<div class="text-xs text-red-400">Помилка завантаження списку каналів</div>';
+    }
+}
+
+async function handleConfirmSubscription() {
+    const userInp = document.getElementById('tgUsernameInput');
+    const regSelect = document.getElementById('tgRegionSelect');
+    const btn = document.getElementById('btnConfirmSub');
+
+    let uname = (userInp ? userInp.value.trim() : '') || 'user_monitor';
+    uname = uname.replace(/^@/, '');
+    const regId = regSelect ? regSelect.value : 'UA-32';
+
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin mr-1"></i> Активація...';
+    }
+
+    try {
+        const res = await fetch('/api/auth/confirm_subscription', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: uname, region_id: regId })
+        });
+        const data = await res.json();
+        
+        currentUserProfile = {
+            username: uname,
+            region_id: regId,
+            is_subscribed: true,
+            precision_mode: 'ultra'
+        };
+
+        try {
+            localStorage.setItem('ua_alert_user_profile', JSON.stringify(currentUserProfile));
+        } catch (e) {}
+
+        updateAuthHeaderDisplay();
+        closeTelegramModal();
+        selectRegion(regId);
+
+        showInAppToast('✅ Режим надвисокої точності (Ultra-Precision) успішно активовано!', 'fa-shield-halved', 'text-sky-400');
+    } catch (e) {
+        console.error('Subscription error:', e);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-shield-halved mr-1"></i><span>Я підписався • Увімкнути надвисоку точність</span>';
+        }
+    }
+}
+
 window.addEventListener('DOMContentLoaded', async () => {
     initIntroSplash();
     initMap();
     initControls();
+    initScrubberControls();
+    initTelegramAuth();
     
     await loadRegionsList();
     await loadOverview();
+    await loadMatrix();
     await loadRegionForecast(selectedRegionId);
     await loadRecentLogs();
     
     initWebSocket();
     
     setInterval(() => {
-        loadOverview();
+        if (activeForecastStepIndex === null) {
+            loadOverview();
+        }
         loadRegionForecast(selectedRegionId);
     }, 10000);
+
+    setInterval(() => {
+        loadMatrix();
+    }, 45000);
 });

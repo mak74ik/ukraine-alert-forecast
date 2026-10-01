@@ -54,46 +54,227 @@ function playAlertSiren() {
     }
 }
 
-// 1. Intro Splash Screen & Circular Reveal Controller
+// Map Tile Layers
+let satelliteTileLayer = null;
+let darkTileLayer = null;
+let currentTileMode = 'satellite';
+
+// 1. Intro Splash Screen & Location Onboarding Controller
+function populateOnboardingDropdowns() {
+    const oblastSelect = document.getElementById('onboardingOblastSelect');
+    const raionSelect = document.getElementById('onboardingRaionSelect');
+    if (!oblastSelect || !raionSelect) return;
+
+    // Ordered list of Ukrainian Oblasts
+    const oblastList = [
+        { id: "UA-32", name: "Київська область" },
+        { id: "UA-30", name: "м. Київ" },
+        { id: "UA-05", name: "Вінницька область" },
+        { id: "UA-07", name: "Волинська область" },
+        { id: "UA-12", name: "Дніпропетровська область" },
+        { id: "UA-14", name: "Донецька область" },
+        { id: "UA-18", name: "Житомирська область" },
+        { id: "UA-21", name: "Закарпатська область" },
+        { id: "UA-23", name: "Запорізька область" },
+        { id: "UA-26", name: "Івано-Франківська область" },
+        { id: "UA-35", name: "Кіровоградська область" },
+        { id: "UA-09", name: "Луганська область" },
+        { id: "UA-46", name: "Львівська область" },
+        { id: "UA-48", name: "Миколаївська область" },
+        { id: "UA-51", name: "Одеська область" },
+        { id: "UA-53", name: "Полтавська область" },
+        { id: "UA-56", name: "Рівненська область" },
+        { id: "UA-59", name: "Сумська область" },
+        { id: "UA-61", name: "Тернопільська область" },
+        { id: "UA-63", name: "Харківська область" },
+        { id: "UA-65", name: "Херсонська область" },
+        { id: "UA-68", name: "Хмельницька область" },
+        { id: "UA-71", name: "Черкаська область" },
+        { id: "UA-74", name: "Чернігівська область" },
+        { id: "UA-77", name: "Чернівецька область" },
+        { id: "UA-43", name: "АР Крим" }
+    ];
+
+    const currentSavedOblast = localStorage.getItem('user_home_oblast') || 'UA-32';
+    const currentSavedRaion = localStorage.getItem('user_home_raion') || '';
+
+    oblastSelect.innerHTML = '';
+    oblastList.forEach(ob => {
+        const opt = document.createElement('option');
+        opt.value = ob.id;
+        opt.innerText = ob.name;
+        if (ob.id === currentSavedOblast) opt.selected = true;
+        oblastSelect.appendChild(opt);
+    });
+
+    const updateRaionsForOblast = (oblastId) => {
+        raionSelect.innerHTML = '<option value="">Вся область (за замовчуванням)</option>';
+        if (typeof UKRAINE_RAIONS_GEOJSON !== 'undefined' && UKRAINE_RAIONS_GEOJSON.features) {
+            const raionNames = new Set();
+            UKRAINE_RAIONS_GEOJSON.features.forEach(f => {
+                if (f.properties && f.properties.oblast_id === oblastId && f.properties.raion_name_ua) {
+                    raionNames.add(f.properties.raion_name_ua);
+                }
+            });
+            const sortedRaions = Array.from(raionNames).sort((a, b) => a.localeCompare(b, 'uk'));
+            sortedRaions.forEach(rName => {
+                const opt = document.createElement('option');
+                opt.value = rName;
+                opt.innerText = `${rName} район`;
+                if (rName === currentSavedRaion) opt.selected = true;
+                raionSelect.appendChild(opt);
+            });
+        }
+    };
+
+    updateRaionsForOblast(oblastSelect.value);
+    oblastSelect.onchange = () => updateRaionsForOblast(oblastSelect.value);
+}
+
+function updateHomeDistrictWidget() {
+    const homeOblast = localStorage.getItem('user_home_oblast') || 'UA-32';
+    const homeRaion = localStorage.getItem('user_home_raion') || '';
+    const oblastName = regionMetadata[homeOblast]?.name_ua || (homeOblast === 'UA-30' ? 'м. Київ' : 'Київська область');
+
+    const textEl = document.getElementById('headerHomeDistrictText');
+    const badgeEl = document.getElementById('headerHomeDistrictStatusBadge');
+    if (!textEl || !badgeEl) return;
+
+    textEl.innerText = homeRaion ? `${homeRaion} р-н, ${oblastName}` : oblastName;
+
+    if (!nationalOverview || !nationalOverview.regions) {
+        badgeEl.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700';
+        badgeEl.innerText = 'Оновлення...';
+        return;
+    }
+
+    const reg = nationalOverview.regions.find(r => r.id === homeOblast);
+    if (!reg || !reg.is_active) {
+        badgeEl.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+        badgeEl.innerText = '🟢 Спокійно';
+        return;
+    }
+
+    // Oblast has active alert!
+    if (reg.is_partial && homeRaion) {
+        const isMatched = (reg.sub_regions || []).some(sub => {
+            const sName = (sub.name_ua || '').toLowerCase();
+            const rLower = homeRaion.toLowerCase();
+            return sName.includes(rLower) || rLower.includes(sName);
+        });
+
+        if (isMatched) {
+            const lvl = reg.alert_level || 'RED';
+            const bgClass = lvl === 'RED' ? 'bg-red-500/25 text-red-300 border-red-500/50 animate-pulse' : 'bg-yellow-500/25 text-yellow-300 border-yellow-500/50 animate-pulse';
+            badgeEl.className = `px-2 py-0.5 rounded text-[10px] font-bold border ${bgClass}`;
+            badgeEl.innerText = `🔴 ТРИВОГА В ${homeRaion.toUpperCase()} Р-НІ`;
+        } else {
+            badgeEl.className = 'px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+            badgeEl.innerText = '🟢 У районі спокійно (тривога в іншій частині)';
+        }
+    } else {
+        const lvl = reg.alert_level || 'RED';
+        const lvlText = lvl === 'RED' ? '🔴 ТРИВОГА (РАКЕТИ)' : (lvl === 'ORANGE' ? '🟠 ЗАГРОЗА КАБ' : '🟡 ЗАГРОЗА БПЛА');
+        const bgClass = lvl === 'RED' ? 'bg-red-500/25 text-red-300 border-red-500/50 animate-pulse' : 'bg-yellow-500/25 text-yellow-300 border-yellow-500/50 animate-pulse';
+        badgeEl.className = `px-2 py-0.5 rounded text-[10px] font-bold border ${bgClass}`;
+        badgeEl.innerText = lvlText;
+    }
+}
+
 function initIntroSplash() {
     const splash = document.getElementById('introSplash');
+    const flagContainer = document.getElementById('flagContainer');
     const pBar = document.getElementById('splashProgressBar');
     const statusText = document.getElementById('splashStatusText');
-    const enterBtn = document.getElementById('enterAppBtn');
+    const loadingSection = document.getElementById('splashLoadingSection');
+    const onboardingCard = document.getElementById('onboardingCard');
+    const submitBtn = document.getElementById('onboardingSubmitBtn');
 
     if (!splash) return;
 
-    let progress = 20;
-    const interval = setInterval(() => {
-        progress += Math.floor(Math.random() * 25) + 15;
-        if (progress >= 100) {
-            progress = 100;
-            clearInterval(interval);
-            if (pBar) pBar.style.width = '100%';
-            if (statusText) statusText.innerText = "Готово! Запуск захищеного монітора...";
+    const savedOblast = localStorage.getItem('user_home_oblast');
+    const savedRaion = localStorage.getItem('user_home_raion');
 
-            setTimeout(() => {
-                dismissSplash();
-            }, 500);
-        } else {
-            if (pBar) pBar.style.width = `${progress}%`;
-        }
-    }, 150);
+    if (savedOblast) {
+        selectedRegionId = savedOblast;
+        updateHomeDistrictWidget();
+        
+        let progress = 35;
+        const interval = setInterval(() => {
+            progress += 30;
+            if (pBar) pBar.style.width = `${Math.min(100, progress)}%`;
+            if (progress >= 100) {
+                clearInterval(interval);
+                if (statusText) statusText.innerText = "Автономна синхронізація завершена";
+                setTimeout(dismissSplash, 400);
+            }
+        }, 120);
+    } else {
+        // First Launch: Smooth progress, flag lifts, then Onboarding form appears!
+        let progress = 20;
+        const interval = setInterval(() => {
+            progress += 25;
+            if (pBar) pBar.style.width = `${Math.min(100, progress)}%`;
+            if (progress >= 100) {
+                clearInterval(interval);
+                if (statusText) statusText.innerText = "Оберіть вашу область та район для сповіщень";
+                if (loadingSection) loadingSection.classList.add('hidden');
+                
+                // Lift Flag
+                if (flagContainer) flagContainer.classList.add('flag-lifted');
+                
+                // Show Onboarding Card
+                if (onboardingCard) onboardingCard.classList.remove('hidden');
+                populateOnboardingDropdowns();
+            }
+        }, 180);
+    }
 
-    const dismissSplash = () => {
+    if (submitBtn) {
+        submitBtn.onclick = () => {
+            const oblastSelect = document.getElementById('onboardingOblastSelect');
+            const raionSelect = document.getElementById('onboardingRaionSelect');
+            if (oblastSelect) {
+                const chosenOblast = oblastSelect.value || 'UA-32';
+                const chosenRaion = raionSelect ? raionSelect.value : '';
+                localStorage.setItem('user_home_oblast', chosenOblast);
+                localStorage.setItem('user_home_raion', chosenRaion);
+                selectedRegionId = chosenOblast;
+                selectRegion(chosenOblast);
+                updateHomeDistrictWidget();
+            }
+            dismissSplash();
+        };
+    }
+
+    function dismissSplash() {
         splash.classList.add('splash-hidden');
         if (map) {
             setTimeout(() => map.invalidateSize(), 300);
         }
         drawCanvasTimeline();
-    };
-
-    if (enterBtn) {
-        enterBtn.addEventListener('click', dismissSplash);
     }
 }
 
-// 2. Leaflet Map with Strict Live Ground-Truth & Kyiv City layering
+// 2. Leaflet Map with ESRI High-Res Satellite & Dark Layer Switcher
+function setMapTileMode(mode) {
+    currentTileMode = mode;
+    const btnSat = document.getElementById('btnLayerSatellite');
+    const btnDark = document.getElementById('btnLayerDark');
+
+    if (mode === 'satellite') {
+        if (map && darkTileLayer && map.hasLayer(darkTileLayer)) map.removeLayer(darkTileLayer);
+        if (map && satelliteTileLayer && !map.hasLayer(satelliteTileLayer)) satelliteTileLayer.addTo(map);
+        if (btnSat) btnSat.className = 'px-2 py-0.5 rounded-md font-bold bg-sky-600 text-white shadow-sm transition flex items-center gap-1';
+        if (btnDark) btnDark.className = 'px-2 py-0.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition flex items-center gap-1';
+    } else {
+        if (map && satelliteTileLayer && map.hasLayer(satelliteTileLayer)) map.removeLayer(satelliteTileLayer);
+        if (map && darkTileLayer && !map.hasLayer(darkTileLayer)) darkTileLayer.addTo(map);
+        if (btnDark) btnDark.className = 'px-2 py-0.5 rounded-md font-bold bg-slate-700 text-white shadow-sm transition flex items-center gap-1';
+        if (btnSat) btnSat.className = 'px-2 py-0.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition flex items-center gap-1';
+    }
+}
+
 function initMap() {
     map = L.map('ukraineMap', {
         center: [48.5, 31.5],
@@ -102,11 +283,28 @@ function initMap() {
         attributionControl: false
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    // ESRI High-Resolution Satellite World Imagery
+    satelliteTileLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 18,
+        minZoom: 5,
+        attribution: 'Esri Satellite'
+    });
+
+    // CartoDB Dark Alternative Layer
+    darkTileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         subdomains: 'abcd',
-        maxZoom: 10,
+        maxZoom: 18,
         minZoom: 5
-    }).addTo(map);
+    });
+
+    // Default to Satellite
+    satelliteTileLayer.addTo(map);
+
+    // Wire up Layer Switcher Buttons
+    const btnSat = document.getElementById('btnLayerSatellite');
+    const btnDark = document.getElementById('btnLayerDark');
+    if (btnSat) btnSat.onclick = () => setMapTileMode('satellite');
+    if (btnDark) btnDark.onclick = () => setMapTileMode('dark');
 
     hotspotsLayer = L.layerGroup().addTo(map);
     radarTracksLayer = L.layerGroup().addTo(map);
@@ -815,6 +1013,7 @@ async function loadOverview() {
             renderNearTermPredictions(nationalOverview.near_term_predictions);
         }
         
+        updateHomeDistrictWidget();
         renderGeoJsonLayer();
     } catch (e) {
         console.error("Error loading overview:", e);
@@ -1045,19 +1244,44 @@ function initWebSocket() {
 function initControls() {
     setInterval(() => {
         const now = new Date();
-        document.getElementById('liveClock').innerText = now.toLocaleTimeString('uk-UA', { timeZone: 'Europe/Kyiv' });
+        const clockEl = document.getElementById('liveClock');
+        if (clockEl) {
+            clockEl.innerText = now.toLocaleTimeString('uk-UA', { timeZone: 'Europe/Kyiv' });
+        }
     }, 1000);
 
     const soundBtn = document.getElementById('soundToggleBtn');
-    soundBtn.addEventListener('click', () => {
-        if (audioCtx.state === 'suspended') {
-            audioCtx.resume();
-        }
-        audioEnabled = !audioEnabled;
-        soundBtn.innerHTML = audioEnabled 
-            ? '<i class="fa-solid fa-volume-high text-emerald-400"></i>' 
-            : '<i class="fa-solid fa-volume-xmark text-slate-500"></i>';
-    });
+    if (soundBtn) {
+        soundBtn.addEventListener('click', () => {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            audioEnabled = !audioEnabled;
+            soundBtn.innerHTML = audioEnabled 
+                ? '<i class="fa-solid fa-volume-high text-emerald-400"></i>' 
+                : '<i class="fa-solid fa-volume-xmark text-slate-500"></i>';
+        });
+    }
+
+    const changeLocBtn = document.getElementById('btnHeaderChangeLocation');
+    if (changeLocBtn) {
+        changeLocBtn.addEventListener('click', () => {
+            const splash = document.getElementById('introSplash');
+            const flagContainer = document.getElementById('flagContainer');
+            const statusText = document.getElementById('splashStatusText');
+            const loadingSection = document.getElementById('splashLoadingSection');
+            const onboardingCard = document.getElementById('onboardingCard');
+
+            if (splash) {
+                if (flagContainer) flagContainer.classList.add('flag-lifted');
+                if (statusText) statusText.innerText = "Зміна локації для сповіщень";
+                if (loadingSection) loadingSection.classList.add('hidden');
+                if (onboardingCard) onboardingCard.classList.remove('hidden');
+                populateOnboardingDropdowns();
+                splash.classList.remove('splash-hidden');
+            }
+        });
+    }
 
     const radarToggle = document.getElementById('toggleRadarLayer');
     if (radarToggle) {
@@ -1068,20 +1292,23 @@ function initControls() {
     }
 
     const syncBtn = document.getElementById('syncNowBtn');
-    syncBtn.addEventListener('click', async () => {
-        try {
-            syncBtn.disabled = true;
-            syncBtn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Синхронізація...';
-            await fetch('/api/sync_now', { method: 'POST' });
-            await loadOverview();
-            await loadRegionForecast(selectedRegionId);
-        } catch (e) {
-            console.error("Sync error:", e);
-        } finally {
-            syncBtn.disabled = false;
-            syncBtn.innerHTML = '<i class="fa-solid fa-rotate text-emerald-400"></i> Синхронізувати';
-        }
-    });
+    if (syncBtn) {
+        syncBtn.addEventListener('click', async () => {
+            try {
+                syncBtn.disabled = true;
+                syncBtn.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> Синхронізація...';
+                await fetch('/api/sync_now', { method: 'POST' });
+                await loadOverview();
+                await loadRegionForecast(selectedRegionId);
+                showInAppToast('Синхронізація успішна', 'fa-rotate', 'text-emerald-400');
+            } catch (e) {
+                console.error("Sync error:", e);
+            } finally {
+                syncBtn.disabled = false;
+                syncBtn.innerHTML = '<i class="fa-solid fa-rotate text-emerald-400"></i> Синхронізувати';
+            }
+        });
+    }
 
     // Timeline Filter Buttons
     const setFilter = (f) => {
@@ -1089,12 +1316,19 @@ function initControls() {
         drawCanvasTimeline();
     };
 
-    document.getElementById('btnViewPast').addEventListener('click', () => setFilter('past'));
-    document.getElementById('btnViewLive').addEventListener('click', () => setFilter('live'));
-    document.getElementById('btnView6h').addEventListener('click', () => setFilter('6h'));
-    document.getElementById('btnView12h').addEventListener('click', () => setFilter('12h'));
-    document.getElementById('btnView24h').addEventListener('click', () => setFilter('24h'));
-    document.getElementById('btnViewFuture').addEventListener('click', () => setFilter('24h'));
+    const btnPast = document.getElementById('btnViewPast');
+    const btnLive = document.getElementById('btnViewLive');
+    const btn6h = document.getElementById('btnView6h');
+    const btn12h = document.getElementById('btnView12h');
+    const btn24h = document.getElementById('btnView24h');
+    const btnFuture = document.getElementById('btnViewFuture');
+
+    if (btnPast) btnPast.addEventListener('click', () => setFilter('past'));
+    if (btnLive) btnLive.addEventListener('click', () => setFilter('live'));
+    if (btn6h) btn6h.addEventListener('click', () => setFilter('6h'));
+    if (btn12h) btn12h.addEventListener('click', () => setFilter('12h'));
+    if (btn24h) btn24h.addEventListener('click', () => setFilter('24h'));
+    if (btnFuture) btnFuture.addEventListener('click', () => setFilter('24h'));
 
     // Canvas Interactive Hover
     const canvas = document.getElementById('timelineChart');
@@ -1343,401 +1577,11 @@ function initScrubberControls() {
     }
 }
 
-// ==========================================
-// 12. Lightweight Native Telegram Auth & Channels Modal
-// ==========================================
-
-
-function showInAppToast(message, icon = "fa-circle-check", color = "text-emerald-400") {
-    let toast = document.getElementById('inAppToast');
-    if (!toast) {
-        toast = document.createElement('div');
-        toast.id = 'inAppToast';
-        toast.className = 'fixed bottom-6 right-6 z-50 bg-slate-900/95 border border-slate-700 px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 text-sm text-white transition-all duration-300 transform translate-y-12 opacity-0 pointer-events-none';
-        document.body.appendChild(toast);
-    }
-    toast.innerHTML = `<i class="fa-solid ${icon} ${color} text-lg"></i><span class="font-medium">${message}</span>`;
-    toast.classList.remove('translate-y-12', 'opacity-0', 'pointer-events-none');
-    setTimeout(() => {
-        toast.classList.add('translate-y-12', 'opacity-0', 'pointer-events-none');
-    }, 3500);
-}
-function initTelegramAuth() {
-    try {
-        const saved = localStorage.getItem('ua_alert_user_profile');
-        if (saved) {
-            currentUserProfile = JSON.parse(saved);
-            updateAuthHeaderDisplay();
-        }
-    } catch (e) {}
-
-    const authBtn = document.getElementById('telegramAuthBtn');
-    if (authBtn) {
-        authBtn.onclick = openTelegramModal;
-    }
-
-    const closeBtn = document.getElementById('closeModalBtn');
-    if (closeBtn) {
-        closeBtn.onclick = closeTelegramModal;
-    }
-
-    const regSelect = document.getElementById('tgRegionSelect');
-    if (regSelect) {
-        regSelect.onchange = (e) => loadRegionChannels(e.target.value);
-    }
-
-    const confirmBtn = document.getElementById('btnConfirmSub');
-    if (confirmBtn) {
-        confirmBtn.onclick = handleConfirmSubscription;
-    }
-
-    const logoutBtn = document.getElementById('btnTgLogout');
-    if (logoutBtn) {
-        logoutBtn.onclick = handleLogout;
-    }
-
-    const scanRegionBtn = document.getElementById('btnScanRegionChannels');
-    if (scanRegionBtn) {
-        scanRegionBtn.onclick = handleScanRegionChannels;
-    }
-
-    const scanCustomBtn = document.getElementById('btnScanCustomChannel');
-    if (scanCustomBtn) {
-        scanCustomBtn.onclick = handleScanCustomChannel;
-    }
-
-    const quickScanBtn = document.getElementById('btnQuickScanTg');
-    if (quickScanBtn) {
-        quickScanBtn.onclick = handleScanRegionChannels;
-    }
-}
-
-function handleLogout() {
-    currentUserProfile = { username: null, region_id: 'UA-32', is_subscribed: false, precision_mode: 'standard' };
-    try {
-        localStorage.removeItem('ua_alert_user_profile');
-    } catch (e) {}
-    updateAuthHeaderDisplay();
-    openTelegramModal();
-    showInAppToast('Ви вийшли з облікового запису', 'fa-arrow-right-from-bracket', 'text-slate-400');
-}
-
-function updateAuthHeaderDisplay() {
-    const btnText = document.getElementById('tgBtnText');
-    const authBtn = document.getElementById('telegramAuthBtn');
-    const quickScanBtn = document.getElementById('btnQuickScanTg');
-    if (!btnText || !authBtn) return;
-
-    if (currentUserProfile && currentUserProfile.username) {
-        if (currentUserProfile.is_subscribed) {
-            btnText.innerHTML = `@${currentUserProfile.username} <span class="text-amber-400 font-bold ml-1">⚡ Ultra</span>`;
-            authBtn.className = 'px-3 py-1.5 text-xs font-semibold bg-emerald-950/40 hover:bg-emerald-950/60 text-emerald-300 border border-emerald-500/50 rounded-lg transition flex items-center gap-1.5 shadow-sm';
-        } else {
-            btnText.innerHTML = `@${currentUserProfile.username}`;
-        }
-        if (quickScanBtn) quickScanBtn.classList.remove('hidden');
-    } else {
-        btnText.innerText = 'Telegram Монітор';
-        if (quickScanBtn) quickScanBtn.classList.add('hidden');
-    }
-}
-
-async function handleScanRegionChannels() {
-    const regSelect = document.getElementById('tgRegionSelect');
-    const activeReg = regSelect && regSelect.value ? regSelect.value : (currentUserProfile?.region_id || selectedRegionId || 'UA-32');
-    const regName = regionMetadata[activeReg]?.name_ua || activeReg;
-
-    const btn = document.getElementById('btnScanRegionChannels');
-    const btnText = document.getElementById('btnScanRegionText');
-    const quickBtn = document.getElementById('btnQuickScanTg');
-    const quickText = document.getElementById('btnQuickScanText');
-    const feedback = document.getElementById('tgScanFeedback');
-
-    if (btn) btn.disabled = true;
-    if (btnText) btnText.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i> Сканування каналів ${regName}...`;
-    if (quickBtn) quickBtn.disabled = true;
-    if (quickText) quickText.innerHTML = `Сканування...`;
-
-    if (feedback) {
-        feedback.classList.remove('hidden');
-        feedback.innerHTML = `<div class="text-sky-400 flex items-center gap-1.5"><i class="fa-solid fa-satellite-dish animate-pulse"></i> Сканування 5 каналів для регіону <strong>${regName}</strong>...</div>`;
-    }
-
-    try {
-        const res = await fetch('/api/auth/scan_region', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                region_id: activeReg,
-                username: currentUserProfile ? currentUserProfile.username : null
-            })
-        });
-
-        const data = await res.json();
-        
-        if (data.status === 'success') {
-            let detailsHtml = '';
-            if (data.channel_results) {
-                detailsHtml = data.channel_results.map(ch => {
-                    const statusIcon = ch.status === 'success' ? '✅' : '⚠️';
-                    const threatsBadge = ch.threats_found > 0 
-                        ? `<span class="text-amber-400 font-bold">${ch.threats_found} загроз</span>`
-                        : `<span class="text-emerald-400">чисто</span>`;
-                    return `<div class="text-[11px] text-slate-300">${statusIcon} <strong>${ch.channel}</strong>: ${ch.messages_found} постів, ${threatsBadge}</div>`;
-                }).join('');
-            }
-
-            if (feedback) {
-                feedback.innerHTML = `
-                    <div class="text-emerald-400 font-bold flex items-center gap-1">
-                        <i class="fa-solid fa-circle-check"></i> Сканування завершено успішно!
-                    </div>
-                    <div class="text-slate-300 text-[11px]">Опрацьовано <strong>${data.total_messages_found}</strong> повідомлень, виявлено <strong>${data.total_threats_found}</strong> подій.</div>
-                    <div class="mt-1 space-y-0.5 border-t border-slate-800 pt-1">${detailsHtml}</div>
-                `;
-            }
-
-            showInAppToast(`Проскановано 5 каналів: знайдено ${data.total_threats_found} загроз`, 'fa-radar', 'text-emerald-400');
-            
-            await loadOverview();
-            await loadRecentLogs();
-            await loadRegionForecast(activeReg);
-        } else {
-            if (feedback) {
-                feedback.innerHTML = `<div class="text-red-400"><i class="fa-solid fa-triangle-exclamation"></i> Помилка: ${data.error || 'Не вдалося виконати сканування'}</div>`;
-            }
-        }
-    } catch (e) {
-        console.error("Scan error:", e);
-        if (feedback) {
-            feedback.innerHTML = `<div class="text-red-400">Помилка мережі при скануванні</div>`;
-        }
-    } finally {
-        if (btn) btn.disabled = false;
-        if (btnText) btnText.innerHTML = `Просканувати 5 каналів області зараз`;
-        if (quickBtn) quickBtn.disabled = false;
-        if (quickText) quickText.innerHTML = `Сканувати ТГ`;
-    }
-}
-
-async function handleScanCustomChannel() {
-    const inp = document.getElementById('tgCustomChannelInput');
-    if (!inp || !inp.value.trim()) {
-        showInAppToast('Введіть посилання або username каналу', 'fa-circle-exclamation', 'text-amber-400');
-        return;
-    }
-
-    const channelVal = inp.value.trim();
-    const btn = document.getElementById('btnScanCustomChannel');
-    const feedback = document.getElementById('tgScanFeedback');
-
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = `<i class="fa-solid fa-spinner animate-spin"></i>`;
-    }
-
-    if (feedback) {
-        feedback.classList.remove('hidden');
-        feedback.innerHTML = `<div class="text-sky-400"><i class="fa-solid fa-satellite-dish animate-pulse"></i> Сканування ${channelVal}...</div>`;
-    }
-
-    try {
-        const res = await fetch('/api/auth/scan_channel', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                channel: channelVal,
-                username: currentUserProfile ? currentUserProfile.username : null
-            })
-        });
-
-        const data = await res.json();
-        if (data.status === 'success') {
-            if (feedback) {
-                let threatsList = '';
-                if (data.threats && data.threats.length > 0) {
-                    threatsList = data.threats.map(t => `<div class="text-[10px] text-amber-300">• [${t.alert_level}] ${t.text}</div>`).join('');
-                } else {
-                    threatsList = `<div class="text-[10px] text-emerald-400">Активних загроз у свіжих постах не виявлено.</div>`;
-                }
-
-                feedback.innerHTML = `
-                    <div class="text-emerald-400 font-bold flex items-center gap-1">
-                        <i class="fa-solid fa-circle-check"></i> Канал ${data.channel} успішно проскановано!
-                    </div>
-                    <div class="text-slate-300 text-[11px]">Знайдено <strong>${data.messages_found}</strong> повідомлень, <strong>${data.threats_found}</strong> загроз.</div>
-                    <div class="mt-1 space-y-0.5 border-t border-slate-800 pt-1">${threatsList}</div>
-                `;
-            }
-
-            showInAppToast(`Канал ${data.channel}: знайдено ${data.threats_found} загроз`, 'fa-circle-check', 'text-emerald-400');
-            inp.value = '';
-
-            await loadOverview();
-            await loadRecentLogs();
-            await loadRegionForecast(selectedRegionId);
-        } else {
-            if (feedback) {
-                feedback.innerHTML = `<div class="text-red-400"><i class="fa-solid fa-triangle-exclamation"></i> Помилка: ${data.error || 'Не вдалося отримати дані каналу'}</div>`;
-            }
-        }
-    } catch (e) {
-        if (feedback) {
-            feedback.innerHTML = `<div class="text-red-400">Помилка запиту сканування каналу</div>`;
-        }
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> <span>Сканувати</span>`;
-        }
-    }
-}
-
-async function openTelegramModal() {
-    const modal = document.getElementById('telegramModal');
-    if (!modal) return;
-    modal.classList.remove('hidden');
-
-    const regSelect = document.getElementById('tgRegionSelect');
-    if (regSelect && regSelect.options.length === 0) {
-        Object.keys(regionMetadata).forEach(regId => {
-            const opt = document.createElement('option');
-            opt.value = regId;
-            opt.innerText = regionMetadata[regId].name_ua;
-            if (regId === (currentUserProfile.region_id || selectedRegionId)) opt.selected = true;
-            regSelect.appendChild(opt);
-        });
-    }
-
-    const profileCard = document.getElementById('tgProfileCard');
-    const inputSec = document.getElementById('tgInputSection');
-    const userInp = document.getElementById('tgUsernameInput');
-    const confirmText = document.getElementById('btnConfirmText');
-
-    if (currentUserProfile && currentUserProfile.username) {
-        if (profileCard) profileCard.classList.remove('hidden');
-        if (inputSec) inputSec.classList.add('hidden');
-        const pUname = document.getElementById('tgProfileUsername');
-        if (pUname) pUname.innerText = '@' + currentUserProfile.username;
-        const pAvatar = document.getElementById('tgUserAvatar');
-        if (pAvatar) pAvatar.innerText = currentUserProfile.username.substring(0, 2).toUpperCase();
-        const pReg = document.getElementById('tgProfileRegionLabel');
-        if (pReg) pReg.innerText = regionMetadata[currentUserProfile.region_id]?.name_ua || 'Обрана область';
-        if (confirmText) confirmText.innerText = 'Оновити канали та статус';
-    } else {
-        if (profileCard) profileCard.classList.add('hidden');
-        if (inputSec) inputSec.classList.remove('hidden');
-        if (userInp) userInp.value = '';
-        if (confirmText) confirmText.innerText = 'Зберегти та увімкнути Ultra-Precision';
-    }
-
-    const activeReg = regSelect ? regSelect.value : (currentUserProfile.region_id || selectedRegionId);
-    if (regSelect) regSelect.value = activeReg;
-    await loadRegionChannels(activeReg);
-}
-
-function closeTelegramModal() {
-    const modal = document.getElementById('telegramModal');
-    if (modal) modal.classList.add('hidden');
-}
-
-async function loadRegionChannels(regId) {
-    const container = document.getElementById('tgChannelsList');
-    if (!container) return;
-    container.innerHTML = '<div class="py-2 text-center text-xs text-slate-400"><i class="fa-solid fa-spinner animate-spin mr-1"></i> Завантаження каналів області...</div>';
-
-    try {
-        const res = await fetch(`/api/channels/${regId}`);
-        const data = await res.json();
-        container.innerHTML = '';
-
-        if (!data.channels || data.channels.length === 0) {
-            container.innerHTML = '<div class="text-xs text-slate-400">Канали відсутні</div>';
-            return;
-        }
-
-        data.channels.forEach(ch => {
-            const isOff = ch.is_official;
-            const badge = isOff 
-                ? '<span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/40 font-semibold">Офіційний</span>'
-                : '<span class="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">Радар / Монітор</span>';
-
-            const item = document.createElement('div');
-            item.className = 'p-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-2 shadow-sm';
-            item.innerHTML = `
-                <div class="min-w-0">
-                    <div class="flex items-center gap-1.5 flex-wrap">
-                        <span class="font-bold text-xs text-white truncate">${ch.name}</span>
-                        ${badge}
-                    </div>
-                    <span class="text-[11px] text-slate-400 font-mono">@${ch.username}</span>
-                </div>
-                <a href="${ch.url}" target="_blank" class="flex-shrink-0 px-2.5 py-1 text-[11px] font-semibold bg-sky-600/20 hover:bg-sky-600/30 text-sky-400 border border-sky-500/30 rounded-lg transition flex items-center gap-1">
-                    <span>Відкрити</span>
-                    <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
-                </a>
-            `;
-            container.appendChild(item);
-        });
-    } catch (e) {
-        container.innerHTML = '<div class="text-xs text-red-400">Помилка завантаження списку каналів</div>';
-    }
-}
-
-async function handleConfirmSubscription() {
-    const userInp = document.getElementById('tgUsernameInput');
-    const regSelect = document.getElementById('tgRegionSelect');
-    const btn = document.getElementById('btnConfirmSub');
-
-    let uname = (userInp ? userInp.value.trim() : '') || 'user_monitor';
-    uname = uname.replace(/^@/, '');
-    const regId = regSelect ? regSelect.value : 'UA-32';
-
-    if (btn) {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fa-solid fa-spinner animate-spin mr-1"></i> Активація...';
-    }
-
-    try {
-        const res = await fetch('/api/auth/confirm_subscription', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: uname, region_id: regId })
-        });
-        const data = await res.json();
-        
-        currentUserProfile = {
-            username: uname,
-            region_id: regId,
-            is_subscribed: true,
-            precision_mode: 'ultra'
-        };
-
-        try {
-            localStorage.setItem('ua_alert_user_profile', JSON.stringify(currentUserProfile));
-        } catch (e) {}
-
-        updateAuthHeaderDisplay();
-        closeTelegramModal();
-        selectRegion(regId);
-
-        showInAppToast('✅ Режим надвисокої точності (Ultra-Precision) успішно активовано!', 'fa-shield-halved', 'text-sky-400');
-    } catch (e) {
-        console.error('Subscription error:', e);
-    } finally {
-        if (btn) {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-shield-halved mr-1"></i><span>Я підписався • Увімкнути надвисоку точність</span>';
-        }
-    }
-}
-
 window.addEventListener('DOMContentLoaded', async () => {
     initIntroSplash();
     initMap();
     initControls();
     initScrubberControls();
-    initTelegramAuth();
     
     await loadRegionsList();
     await loadOverview();

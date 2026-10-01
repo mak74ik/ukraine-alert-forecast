@@ -5,6 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UA Alert Forecast & Monitor | Автономний прогноз тривог 24г</title>
     
+    <!-- Zero-Flash Dark Mode Baseline -->
+    <style>
+        html, body {
+            background-color: #060912 !important;
+            color: #f1f5f9;
+            margin: 0;
+            padding: 0;
+            color-scheme: dark;
+        }
+    </style>
+
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -13,8 +24,8 @@
             theme: {
                 extend: {
                     colors: {
-                        darkBg: '#090d16',
-                        darkCard: '#101726',
+                        darkBg: '#060912',
+                        darkCard: '#0f172a',
                         darkBorder: '#1e293b',
                         accentRed: '#ef4444',
                         accentYellow: '#eab308',
@@ -39,12 +50,12 @@
             position: fixed;
             inset: 0;
             z-index: 99999;
-            background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+            background: radial-gradient(circle at center, #0f172a 0%, #030712 100%);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            transition: clip-path 1.2s cubic-bezier(0.77, 0, 0.175, 1), opacity 0.8s ease;
+            transition: clip-path 1.1s cubic-bezier(0.77, 0, 0.175, 1), opacity 0.7s ease;
             clip-path: circle(150% at center);
         }
         #introSplash.splash-hidden {
@@ -60,18 +71,23 @@
             height: 180px;
             perspective: 800px;
             filter: drop-shadow(0 15px 35px rgba(0, 87, 184, 0.45));
+            transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), margin 0.6s ease;
+        }
+        .flag-canvas-container.flag-lifted {
+            transform: translateY(-24px) scale(0.92);
+            margin-bottom: 0.5rem;
         }
         .waving-flag {
             width: 100%;
             height: 100%;
-            border-radius: 12px;
+            border-radius: 14px;
             overflow: hidden;
             display: flex;
             flex-direction: column;
             box-shadow: 0 10px 30px rgba(0,0,0,0.8), inset 0 0 100px rgba(255,255,255,0.15);
             animation: waveFlag 3s infinite ease-in-out alternate;
             transform-style: preserve-3d;
-            border: 1px solid rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.15);
         }
         .flag-blue {
             flex: 1;
@@ -138,15 +154,7 @@
             background: #334155;
             border-radius: 4px;
         }
-        /* Hotspot district pulse ring */
-        @keyframes hotspot-pulse {
-            0% { opacity: 0.6; transform: scale(0.85); }
-            50% { opacity: 0.25; transform: scale(1.15); }
-            100% { opacity: 0.6; transform: scale(0.85); }
-        }
-        .hotspot-pulse-ring {
-            animation: hotspot-pulse 2.2s infinite ease-in-out;
-        }
+        /* Hotspot district label styling */
         .hotspot-label-container {
             background: transparent !important;
             border: none !important;
@@ -157,7 +165,7 @@
             font-weight: 700;
             text-align: center;
             white-space: nowrap;
-            text-shadow: 0 1px 4px rgba(0,0,0,0.85), 0 0 8px rgba(0,0,0,0.6);
+            text-shadow: 0 1px 4px rgba(0,0,0,0.9), 0 0 8px rgba(0,0,0,0.8);
             pointer-events: none;
             letter-spacing: 0.02em;
         }
@@ -165,9 +173,9 @@
 </head>
 <body class="bg-darkBg text-slate-200 font-sans min-h-screen flex flex-col antialiased selection:bg-red-500 selection:text-white relative overflow-x-hidden">
 
-    <!-- INTRO SPLASH SCREEN (Waving Flag + Circular Iris Transition) -->
+    <!-- INTRO SPLASH SCREEN (Waving Flag + Onboarding Selection) -->
     <div id="introSplash">
-        <div class="flag-canvas-container mb-6">
+        <div id="flagContainer" class="flag-canvas-container mb-4">
             <div class="waving-flag">
                 <div class="flag-blue">
                     <div class="flag-wave-overlay"></div>
@@ -184,24 +192,53 @@
             </div>
         </div>
 
-        <div class="text-center max-w-md px-4">
-            <h1 class="text-xl md:text-2xl font-black text-white tracking-wider flex items-center justify-center gap-2 mb-2">
+        <div class="text-center max-w-md px-4 w-full">
+            <h1 class="text-xl md:text-2xl font-black text-white tracking-wider flex items-center justify-center gap-2 mb-1">
                 <span>UA ALERT FORECAST</span>
                 <span class="text-xs px-2 py-0.5 rounded-full bg-red-500 text-white font-bold">2026 PRO</span>
             </h1>
-            <p id="splashStatusText" class="text-xs text-slate-400 font-mono mb-4">
-                Ініціалізація векторного радара • 26 джерел моніторингу...
+            <p id="splashStatusText" class="text-xs text-slate-400 font-mono mb-3">
+                Ініціалізація автономного векторного радара...
             </p>
 
             <!-- Loading bar -->
-            <div class="w-64 h-1.5 bg-slate-800 rounded-full mx-auto overflow-hidden mb-5 border border-slate-700">
-                <div id="splashProgressBar" class="h-full bg-gradient-to-r from-blue-500 via-amber-400 to-red-500 rounded-full transition-all duration-300" style="width: 20%"></div>
+            <div id="splashLoadingSection" class="w-64 h-1.5 bg-slate-800 rounded-full mx-auto overflow-hidden mb-3 border border-slate-700">
+                <div id="splashProgressBar" class="h-full bg-gradient-to-r from-blue-500 via-amber-400 to-red-500 rounded-full transition-all duration-300" style="width: 25%"></div>
             </div>
 
-            <button id="enterAppBtn" class="px-6 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-lg shadow-blue-500/30 transition transform hover:scale-105 active:scale-95 flex items-center gap-2 mx-auto">
-                <span>Перейти до монітора</span>
-                <i class="fa-solid fa-arrow-right"></i>
-            </button>
+            <!-- Onboarding Region & District Selection Form (Appears when flag lifts) -->
+            <div id="onboardingCard" class="hidden mt-3 bg-slate-900/95 border border-slate-700/80 rounded-2xl p-4 shadow-2xl backdrop-blur-md text-left space-y-3">
+                <div class="border-b border-slate-800 pb-2 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-location-crosshairs text-sky-400 text-xs"></i>
+                        <h2 class="text-xs font-bold text-white uppercase tracking-wider">Ваша локація для сповіщень</h2>
+                    </div>
+                    <span class="text-[10px] text-emerald-400 font-mono">100% Автономно</span>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-300 mb-1">
+                        1. Область проживання <span class="text-red-400">*</span>
+                    </label>
+                    <select id="onboardingOblastSelect" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500 transition">
+                        <!-- Populated with all 25 regions -->
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-[11px] font-semibold text-slate-300 mb-1">
+                        2. Район / місто <span class="text-slate-500 font-normal">(опціонально)</span>
+                    </label>
+                    <select id="onboardingRaionSelect" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500 transition">
+                        <option value="">Вся область (за замовчуванням)</option>
+                    </select>
+                </div>
+
+                <button id="onboardingSubmitBtn" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 via-sky-500 to-emerald-500 hover:from-blue-500 hover:to-emerald-400 text-white font-bold text-xs shadow-lg shadow-sky-500/25 transition transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2">
+                    <span>Увійти до монітора</span>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -216,14 +253,27 @@
                     <div class="flex items-center gap-2 flex-wrap">
                         <h1 class="font-bold text-lg text-white tracking-wide">UA Alert Forecast</h1>
                         <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-red-500/20 text-red-400 border border-red-500/30">24H PRO</span>
-                        <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-blue-500/20 text-blue-400 border border-blue-500/30">26 Джерел (ПС ЗСУ, alerts.in.ua, Ванёк, тощо)</span>
+                        <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">🛰️ Супутниковий радар</span>
                     </div>
-                    <p class="text-xs text-slate-400">Автономний моніторинг, векторний радар цілей та 24г прогноз</p>
+                    <p class="text-xs text-slate-400">Автономний моніторинг, векторна кінематика та 24г прогноз</p>
                 </div>
             </div>
 
             <!-- Top Stats & Controls -->
             <div class="flex items-center flex-wrap gap-2.5">
+                <!-- User Home District Card -->
+                <div id="headerHomeDistrictCard" class="bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-700/80 flex items-center gap-2 text-xs shadow-sm">
+                    <i class="fa-solid fa-location-dot text-sky-400"></i>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-slate-400">Мій район:</span>
+                        <span id="headerHomeDistrictText" class="font-bold text-white">Київська обл.</span>
+                    </div>
+                    <span id="headerHomeDistrictStatusBadge" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">🟢 Спокійно</span>
+                    <button id="btnHeaderChangeLocation" class="text-slate-400 hover:text-sky-400 p-0.5 transition" title="Змінити мій район">
+                        <i class="fa-solid fa-pen-to-square text-xs"></i>
+                    </button>
+                </div>
+
                 <!-- Live Alerts Count -->
                 <div class="bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60 flex items-center gap-2">
                     <span class="relative flex h-3 w-3">
@@ -239,18 +289,6 @@
                     <i class="fa-regular fa-clock text-amber-400"></i>
                     <span id="liveClock">--:--:--</span>
                 </div>
-
-                <!-- Telegram Auth Button -->
-                <button id="telegramAuthBtn" class="px-3 py-1.5 text-xs font-semibold bg-sky-600/20 hover:bg-sky-600/30 text-sky-400 border border-sky-500/40 rounded-lg transition flex items-center gap-1.5 shadow-sm">
-                    <i class="fa-brands fa-telegram text-sm text-sky-400"></i>
-                    <span id="tgBtnText">Telegram Монітор</span>
-                </button>
-
-                <!-- Quick Telegram Region Scanner Button -->
-                <button id="btnQuickScanTg" class="px-2.5 py-1.5 text-xs font-semibold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/40 rounded-lg transition flex items-center gap-1.5 shadow-sm" title="Миттєво просканувати канали вашої області">
-                    <i class="fa-solid fa-radar text-xs text-emerald-400"></i>
-                    <span id="btnQuickScanText">Сканувати ТГ</span>
-                </button>
 
                 <!-- Sync Now Button -->
                 <button id="syncNowBtn" class="px-2.5 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition flex items-center gap-1">
@@ -275,13 +313,24 @@
             <div class="bg-darkCard rounded-2xl border border-darkBorder p-4 shadow-xl flex flex-col min-h-[520px] relative overflow-hidden flex-1">
                 <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
                     <div class="flex items-center gap-2">
-                        <i class="fa-solid fa-map-location-dot text-amber-400"></i>
+                        <i class="fa-solid fa-satellite text-amber-400"></i>
                         <h2 class="font-bold text-sm text-white">Карта повітряних загроз України</h2>
                         <span class="text-[10px] px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 font-semibold">
                             Правила з 1 вересня: Жовтий / Червоний
                         </span>
                     </div>
+                    
                     <div class="flex items-center gap-2">
+                        <!-- Map Layer Switcher (Satellite vs Dark) -->
+                        <div class="bg-slate-900/90 border border-slate-700 rounded-lg p-0.5 flex items-center text-[11px]">
+                            <button id="btnLayerSatellite" class="px-2 py-0.5 rounded-md font-bold bg-sky-600 text-white shadow-sm transition flex items-center gap-1">
+                                <i class="fa-solid fa-earth-americas text-[10px]"></i> Спутник
+                            </button>
+                            <button id="btnLayerDark" class="px-2 py-0.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition flex items-center gap-1">
+                                <i class="fa-solid fa-moon text-[10px]"></i> Темна
+                            </button>
+                        </div>
+
                         <span id="mapTimeLabel" class="text-xs font-mono font-bold px-2.5 py-1 rounded bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1.5">
                             <span class="w-2 h-2 rounded-full bg-red-500 animate-ping inline-block"></span>
                             <span id="mapModeText">● РЕАЛЬНИЙ ЧАС (LIVE)</span>
@@ -541,125 +590,6 @@
     <script src="ukraine_raions_geojson.js"></script>
     <script src="app.js"></script>
 
-    <!-- Light & Native Telegram Auth Modal (Zero Friction, 100% Optional) -->
-    <div id="telegramModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-darkCard border border-darkBorder rounded-2xl max-w-lg w-full p-6 shadow-2xl relative overflow-hidden">
-            <div class="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
-                <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center justify-center text-lg">
-                        <i class="fa-brands fa-telegram"></i>
-                    </div>
-                    <div>
-                        <h3 class="font-bold text-white text-base">Регіональний Telegram-Монітор</h3>
-                        <p class="text-xs text-slate-400">Легка авторизація без паролів та API-ключів</p>
-                    </div>
-                </div>
-                <button id="closeModalBtn" class="text-slate-400 hover:text-white transition text-lg p-1">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
-            </div>
-
-            <div class="space-y-4">
-                <!-- Logged In Profile Card (Hidden by default, shown if authorized) -->
-                <div id="tgProfileCard" class="hidden bg-slate-900/90 border border-slate-800 p-3.5 rounded-xl">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-3">
-                            <div id="tgUserAvatar" class="w-10 h-10 rounded-full bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center font-bold text-sm text-white shadow-md">
-                                UA
-                            </div>
-                            <div>
-                                <div class="flex items-center gap-2">
-                                    <span id="tgProfileUsername" class="font-bold text-sm text-white">@username</span>
-                                    <span id="tgPrecisionBadge" class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                                        ⚡ Ultra
-                                    </span>
-                                </div>
-                                <span id="tgProfileRegionLabel" class="text-xs text-slate-400">Київська область</span>
-                            </div>
-                        </div>
-                        <button id="btnTgLogout" class="px-2.5 py-1 text-xs text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition border border-slate-700/50">
-                            Вийти
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Input section (Shown for login or updating) -->
-                <div id="tgInputSection">
-                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                        Ваш нікнейм у Telegram
-                    </label>
-                    <div class="relative">
-                        <span class="absolute left-3 top-2.5 text-slate-500 text-sm">@</span>
-                        <input id="tgUsernameInput" type="text" placeholder="username (або ім'я)" class="w-full bg-slate-900 border border-slate-700 rounded-xl pl-8 pr-4 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 transition">
-                    </div>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                        Ваша область (для відображення 5 місцевих каналів)
-                    </label>
-                    <select id="tgRegionSelect" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500 transition">
-                        <!-- Populated with all 25 regions -->
-                    </select>
-                </div>
-
-                <div>
-                    <div class="flex items-center justify-between mb-2">
-                        <label class="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                            5 перевірених каналів для вашої області
-                        </label>
-                        <span class="text-[11px] text-sky-400 font-medium">Підпишіться для точного радара</span>
-                    </div>
-                    <div id="tgChannelsList" class="space-y-2 max-h-[180px] overflow-y-auto pr-1">
-                        <!-- Dynamic list of 5 channels -->
-                    </div>
-                </div>
-
-                <!-- Manual Telegram Channel Scanner & Ingestion -->
-                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 space-y-2.5">
-                    <div class="flex items-center justify-between">
-                        <span class="text-xs font-bold text-sky-400 flex items-center gap-1.5">
-                            <i class="fa-solid fa-satellite-dish"></i> Ручне сканування каналів
-                        </span>
-                        <span class="text-[10px] text-slate-400 font-mono">миттєвий аналіз постів</span>
-                    </div>
-
-                    <button id="btnScanRegionChannels" class="w-full py-2 px-3 rounded-lg bg-emerald-600/90 hover:bg-emerald-500 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-radar"></i>
-                        <span id="btnScanRegionText">Просканувати 5 каналів області зараз</span>
-                    </button>
-
-                    <div class="pt-2 border-t border-slate-800/80">
-                        <label class="block text-[11px] text-slate-300 font-medium mb-1">
-                            Або введіть будь-який інший Telegram-канал вручну:
-                        </label>
-                        <div class="flex items-center gap-2">
-                            <input id="tgCustomChannelInput" type="text" placeholder="@channel або t.me/channel" class="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 transition">
-                            <button id="btnScanCustomChannel" class="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition flex items-center gap-1">
-                                <i class="fa-solid fa-magnifying-glass"></i>
-                                <span>Сканувати</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Live feedback console -->
-                    <div id="tgScanFeedback" class="hidden p-2.5 rounded-lg bg-slate-950 border border-slate-800 text-xs font-mono space-y-1 max-h-[120px] overflow-y-auto">
-                    </div>
-                </div>
-
-                <div class="pt-2 border-t border-slate-800 flex items-center justify-between gap-2.5">
-                    <button id="btnConfirmSub" class="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-bold text-xs shadow-lg shadow-sky-500/20 transition flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-shield-halved"></i>
-                        <span id="btnConfirmText">Зберегти та увімкнути Ultra-Precision</span>
-                    </button>
-                </div>
-
-                <p class="text-[11px] text-slate-500 text-center">
-                    ℹ️ Telegram є на 100% необов'язковим. Усі прогнози, 24г таймлапс і карта працюють повністю автономно навіть для гостей.
-                </p>
-            </div>
-        </div>
-    </div>
 
 </body>
 </html>

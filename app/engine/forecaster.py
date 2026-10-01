@@ -312,12 +312,9 @@ class AlertForecaster:
                 reg_proj[0].threat_type.value if reg_proj else ThreatType.GENERAL_ALERT.value
             )
 
-            # Alert Level from active DB or projection
+            # Alert Level from active DB or projection (Yellow for Shahed/Drone, Red for Missiles/Ballistic)
             if is_active:
-                cur_level = active_alerts[reg_id].get("alert_level")
-                if not cur_level:
-                    cur_threat_enum = ThreatType(cur_threat) if cur_threat in [t.value for t in ThreatType] else ThreatType.GENERAL_ALERT
-                    cur_level = THREAT_TO_ALERT_LEVEL.get(cur_threat_enum, AlertLevel.YELLOW).value
+                cur_level = active_alerts[reg_id].get("alert_level") or AlertLevel.RED.value
             elif cur_prob >= 0.35:
                 if reg_proj and reg_proj[0].threat_type == ThreatType.SHAHED:
                     cur_level = AlertLevel.YELLOW.value

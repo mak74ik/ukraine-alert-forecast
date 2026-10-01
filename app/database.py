@@ -196,14 +196,11 @@ def _activate_alert_sync(region_id: str, threat_type: str, source_channel: str, 
             updates.append("alert_level = ?")
             params.append(level)
 
-            # 2. Update sub-regions & partial state if provided
-            if sub_regions:
-                updates.append("sub_regions_json = ?")
-                params.append(sub_json)
-                updates.append("is_partial = ?")
-                params.append(1 if is_partial else 0)
-            elif not is_partial and existing_partial:
-                updates.append("is_partial = 0")
+            # 2. Update sub-regions & partial state
+            updates.append("sub_regions_json = ?")
+            params.append(sub_json)
+            updates.append("is_partial = ?")
+            params.append(1 if is_partial else 0)
 
             if updates:
                 params.append(alert_id)

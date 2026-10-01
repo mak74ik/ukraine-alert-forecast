@@ -5,14 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UA Alert Forecast & Monitor | Автономний прогноз тривог 24г</title>
     
+    <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono (Vercel/Shadcn standards) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
     <!-- Zero-Flash Dark Mode Baseline -->
     <style>
         html, body {
-            background-color: #060912 !important;
+            background-color: #030712 !important;
             color: #f1f5f9;
             margin: 0;
             padding: 0;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             color-scheme: dark;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', ui-monospace, monospace !important;
+            font-feature-settings: "tnum" 1;
+            font-variant-numeric: tabular-nums;
         }
     </style>
 
@@ -23,14 +36,19 @@
             darkMode: 'class',
             theme: {
                 extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace']
+                    },
                     colors: {
-                        darkBg: '#060912',
-                        darkCard: '#0f172a',
-                        darkBorder: '#1e293b',
+                        darkBg: '#030712',
+                        darkCard: '#090d16',
+                        darkSurface: '#0e1422',
+                        darkBorder: 'rgba(255, 255, 255, 0.08)',
                         accentRed: '#ef4444',
                         accentYellow: '#eab308',
-                        accentGreen: '#22c55e',
-                        accentBlue: '#3b82f6'
+                        accentGreen: '#10b981',
+                        accentBlue: '#0284c7'
                     }
                 }
             }
@@ -45,12 +63,40 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
     
     <style>
+        /* Vercel & ShadCN Component Tokens */
+        .shadcn-card {
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.75) 0%, rgba(9, 13, 22, 0.90) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 
+                inset 0 1px 0 0 rgba(255, 255, 255, 0.12),
+                0 12px 36px -12px rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(20px) saturate(180%);
+            border-radius: 1rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .shadcn-card:hover {
+            border-color: rgba(255, 255, 255, 0.16);
+            box-shadow: 
+                inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
+                0 18px 45px -12px rgba(0, 0, 0, 0.75);
+        }
+
+        /* Emil Kowalski Tactile Spring Buttons */
+        .emil-btn {
+            position: relative;
+            transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+            box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+        }
+        .emil-btn:active {
+            transform: scale(0.96) !important;
+        }
+
         /* Intro Splash Screen & Circular Transition */
         #introSplash {
             position: fixed;
             inset: 0;
             z-index: 99999;
-            background: radial-gradient(circle at center, #0f172a 0%, #030712 100%);
+            background: radial-gradient(circle at center, #090d16 0%, #030712 100%);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -124,8 +170,8 @@
         /* Leaflet & Pulse Styles */
         .leaflet-container {
             z-index: 1 !important;
-            background: #070b12 !important;
-            border-radius: 0.75rem;
+            background: #030712 !important;
+            border-radius: 0.85rem;
         }
         .leaflet-top, .leaflet-bottom {
             z-index: 5 !important;
@@ -144,15 +190,18 @@
         }
         /* Custom scrollbar */
         ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
+            width: 5px;
+            height: 5px;
         }
         ::-webkit-scrollbar-track {
-            background: #0f172a;
+            background: #090d16;
         }
         ::-webkit-scrollbar-thumb {
-            background: #334155;
+            background: #1e293b;
             border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #334155;
         }
         /* Hotspot district label styling */
         .hotspot-label-container {
@@ -235,25 +284,18 @@
                 </div>
 
                 <button id="onboardingSubmitBtn" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 via-sky-500 to-emerald-500 hover:from-blue-500 hover:to-emerald-400 text-white font-bold text-xs shadow-lg shadow-sky-500/25 transition transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2">
-                    <span>Увійти до монітора</span>
-                    <i class="fa-solid fa-arrow-right"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Header / Navbar -->
-    <header class="bg-darkCard/95 backdrop-blur-md border-b border-darkBorder sticky top-0 z-50 px-4 lg:px-8 py-3 shadow-lg w-full">
+                    <span    <!-- Header / Navbar (Vercel Glass Surface) -->
+    <header class="bg-darkCard/80 backdrop-blur-xl border-b border-white/[0.08] sticky top-0 z-50 px-4 lg:px-8 py-3 shadow-lg shadow-black/40 w-full">
         <div class="w-full flex flex-wrap items-center justify-between gap-4">
             <div class="flex items-center space-x-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center shadow-lg shadow-red-500/20">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 via-rose-500 to-amber-500 flex items-center justify-center shadow-lg shadow-red-500/25 border border-white/10">
                     <i class="fa-solid fa-radar text-white text-lg animate-spin" style="animation-duration: 10s;"></i>
                 </div>
                 <div>
                     <div class="flex items-center gap-2 flex-wrap">
-                        <h1 class="font-bold text-lg text-white tracking-wide">UA Alert Forecast</h1>
-                        <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-red-500/20 text-red-400 border border-red-500/30">24H PRO</span>
-                        <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">🛰️ Супутниковий радар</span>
+                        <h1 class="font-bold text-lg text-white tracking-tight">UA Alert Forecast</h1>
+                        <span class="px-2 py-0.5 text-[11px] font-semibold rounded-full bg-red-500/15 text-red-300 border border-red-500/30">24H PRO</span>
+                        <span class="px-2 py-0.5 text-[11px] font-medium rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">🛰️ Супутниковий радар</span>
                     </div>
                     <p class="text-xs text-slate-400">Автономний моніторинг, векторна кінематика та 24г прогноз</p>
                 </div>
@@ -262,41 +304,41 @@
             <!-- Top Stats & Controls -->
             <div class="flex items-center flex-wrap gap-2.5">
                 <!-- User Home District Card -->
-                <div id="headerHomeDistrictCard" class="bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-700/80 flex items-center gap-2 text-xs shadow-sm">
+                <div id="headerHomeDistrictCard" class="bg-darkSurface/90 px-3 py-1.5 rounded-xl border border-white/[0.08] flex items-center gap-2 text-xs shadow-sm hover:border-white/20 transition">
                     <i class="fa-solid fa-location-dot text-sky-400"></i>
                     <div class="flex items-center gap-1.5">
                         <span class="text-slate-400">Мій район:</span>
                         <span id="headerHomeDistrictText" class="font-bold text-white">Київська обл.</span>
                     </div>
-                    <span id="headerHomeDistrictStatusBadge" class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">🟢 Спокійно</span>
-                    <button id="btnHeaderChangeLocation" class="text-slate-400 hover:text-sky-400 p-0.5 transition" title="Змінити мій район">
+                    <span id="headerHomeDistrictStatusBadge" class="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">🟢 Спокійно</span>
+                    <button id="btnHeaderChangeLocation" class="emil-btn text-slate-400 hover:text-sky-300 p-1 rounded-md hover:bg-white/[0.06] transition" title="Змінити мій район">
                         <i class="fa-solid fa-pen-to-square text-xs"></i>
                     </button>
                 </div>
 
                 <!-- Live Alerts Count -->
-                <div class="bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60 flex items-center gap-2">
-                    <span class="relative flex h-3 w-3">
+                <div class="bg-darkSurface/90 px-3 py-1.5 rounded-xl border border-white/[0.08] flex items-center gap-2 shadow-sm">
+                    <span class="relative flex h-2.5 w-2.5">
                         <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
                     </span>
                     <span class="text-xs font-medium text-slate-300">Тривога:</span>
-                    <span id="activeAlertsCounter" class="text-sm font-bold text-red-400">...</span>
+                    <span id="activeAlertsCounter" class="text-xs font-mono font-bold text-red-400">...</span>
                 </div>
 
                 <!-- Clock -->
-                <div class="bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/60 flex items-center gap-1.5 text-xs font-mono text-slate-300">
-                    <i class="fa-regular fa-clock text-amber-400"></i>
+                <div class="bg-darkSurface/90 px-3 py-1.5 rounded-xl border border-white/[0.08] flex items-center gap-1.5 text-xs font-mono text-slate-300 shadow-sm">
+                    <i class="fa-regular fa-clock text-amber-400 text-[11px]"></i>
                     <span id="liveClock">--:--:--</span>
                 </div>
 
                 <!-- Sync Now Button -->
-                <button id="syncNowBtn" class="px-2.5 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg transition flex items-center gap-1">
-                    <i class="fa-solid fa-rotate text-emerald-400"></i> Синхронізувати
+                <button id="syncNowBtn" class="emil-btn px-3 py-1.5 text-xs bg-darkSurface hover:bg-slate-800 text-slate-200 border border-white/[0.1] rounded-xl transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-rotate text-emerald-400"></i> <span>Синхронізувати</span>
                 </button>
 
                 <!-- Audio alert toggle (muted by default) -->
-                <button id="soundToggleBtn" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 transition" title="Увімкнути звук сирен">
+                <button id="soundToggleBtn" class="emil-btn p-2 rounded-xl bg-darkSurface hover:bg-slate-800 border border-white/[0.1] text-slate-400 hover:text-white transition shadow-sm" title="Увімкнути звук сирен">
                     <i class="fa-solid fa-volume-xmark text-slate-500"></i>
                 </button>
             </div>
@@ -304,34 +346,34 @@
     </header>
 
     <!-- Main Content -->
-    <main class="w-full px-4 lg:px-8 py-4 grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 relative z-10">
+    <main class="w-full px-4 lg:px-8 py-5 grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 relative z-10">
 
         <!-- Left Column: Map of Ukraine & Region Fast Selector (6 cols) -->
-        <div class="lg:col-span-6 flex flex-col gap-4">
+        <div class="lg:col-span-6 flex flex-col gap-5">
             
-            <!-- Map Container Card -->
-            <div class="bg-darkCard rounded-2xl border border-darkBorder p-4 shadow-xl flex flex-col min-h-[520px] relative overflow-hidden flex-1">
-                <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+            <!-- Map Container Card (ShadCN Glass) -->
+            <div class="shadcn-card p-4 flex flex-col min-h-[520px] relative overflow-hidden flex-1">
+                <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                     <div class="flex items-center gap-2">
                         <i class="fa-solid fa-satellite text-amber-400"></i>
-                        <h2 class="font-bold text-sm text-white">Карта повітряних загроз України</h2>
-                        <span class="text-[10px] px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 font-semibold">
-                            Правила з 1 вересня: Жовтий / Червоний
+                        <h2 class="font-bold text-sm text-white tracking-tight">Карта повітряних загроз України</h2>
+                        <span class="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/15 text-yellow-300 border border-yellow-500/30 font-semibold">
+                            Жовтий / Червоний
                         </span>
                     </div>
                     
                     <div class="flex items-center gap-2">
                         <!-- Map Layer Switcher (Satellite vs Dark) -->
-                        <div class="bg-slate-900/90 border border-slate-700 rounded-lg p-0.5 flex items-center text-[11px]">
-                            <button id="btnLayerSatellite" class="px-2 py-0.5 rounded-md font-bold bg-sky-600 text-white shadow-sm transition flex items-center gap-1">
+                        <div class="bg-black/50 border border-white/[0.1] rounded-lg p-0.5 flex items-center text-[11px] shadow-inner">
+                            <button id="btnLayerSatellite" class="emil-btn px-2.5 py-1 rounded-md font-bold bg-sky-600 text-white shadow-sm transition flex items-center gap-1">
                                 <i class="fa-solid fa-earth-americas text-[10px]"></i> Спутник
                             </button>
-                            <button id="btnLayerDark" class="px-2 py-0.5 rounded-md font-medium text-slate-400 hover:text-slate-200 transition flex items-center gap-1">
+                            <button id="btnLayerDark" class="emil-btn px-2.5 py-1 rounded-md font-medium text-slate-400 hover:text-slate-200 transition flex items-center gap-1">
                                 <i class="fa-solid fa-moon text-[10px]"></i> Темна
                             </button>
                         </div>
 
-                        <span id="mapTimeLabel" class="text-xs font-mono font-bold px-2.5 py-1 rounded bg-red-500/20 text-red-400 border border-red-500/30 flex items-center gap-1.5">
+                        <span id="mapTimeLabel" class="text-xs font-mono font-bold px-2.5 py-1 rounded-lg bg-red-500/15 text-red-300 border border-red-500/30 flex items-center gap-1.5 shadow-sm">
                             <span class="w-2 h-2 rounded-full bg-red-500 animate-ping inline-block"></span>
                             <span id="mapModeText">● РЕАЛЬНИЙ ЧАС (LIVE)</span>
                         </span>
@@ -339,21 +381,21 @@
                 </div>
 
                 <!-- 24-Hour Interactive Forecast Scrubber & Controls -->
-                <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 mb-3">
+                <div class="bg-darkSurface/80 border border-white/[0.08] rounded-xl p-3 mb-3 backdrop-blur-sm">
                     <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
                         <div class="flex items-center gap-1.5 flex-wrap">
-                            <button id="fcBtnLive" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-red-500 text-white shadow-sm hover:bg-red-600 transition flex items-center gap-1">
+                            <button id="fcBtnLive" class="emil-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-red-500 text-white shadow-sm hover:bg-red-600 transition flex items-center gap-1">
                                 <i class="fa-solid fa-satellite-dish"></i> Live Зараз
                             </button>
-                            <button id="fcBtn30m" class="px-2 py-1 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">+30 хв</button>
-                            <button id="fcBtn1h" class="px-2 py-1 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">+1 год</button>
-                            <button id="fcBtn2h" class="px-2 py-1 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">+2 год</button>
-                            <button id="fcBtn4h" class="px-2 py-1 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">+4 год</button>
-                            <button id="fcBtn8h" class="px-2 py-1 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">+8 год</button>
-                            <button id="fcBtn12h" class="px-2 py-1 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">+12 год</button>
-                            <button id="fcBtn24h" class="px-2 py-1 text-xs font-semibold rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30 transition">+24 год</button>
+                            <button id="fcBtn30m" class="emil-btn px-2 py-1 text-xs rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/[0.06] transition">+30 хв</button>
+                            <button id="fcBtn1h" class="emil-btn px-2 py-1 text-xs rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/[0.06] transition">+1 год</button>
+                            <button id="fcBtn2h" class="emil-btn px-2 py-1 text-xs rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/[0.06] transition">+2 год</button>
+                            <button id="fcBtn4h" class="emil-btn px-2 py-1 text-xs rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/[0.06] transition">+4 год</button>
+                            <button id="fcBtn8h" class="emil-btn px-2 py-1 text-xs rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/[0.06] transition">+8 год</button>
+                            <button id="fcBtn12h" class="emil-btn px-2 py-1 text-xs rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/[0.06] transition">+12 год</button>
+                            <button id="fcBtn24h" class="emil-btn px-2 py-1 text-xs font-semibold rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition">+24 год</button>
                         </div>
-                        <button id="btnPlayTimelapse" class="px-3 py-1 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition flex items-center gap-1.5 shadow-sm">
+                        <button id="btnPlayTimelapse" class="emil-btn px-3 py-1 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition flex items-center gap-1.5 shadow-sm shadow-blue-500/25">
                             <i class="fa-solid fa-play text-[10px]"></i>
                             <span id="playBtnText">24г Таймлапс</span>
                         </button>
@@ -373,67 +415,67 @@
                 </div>
 
                 <!-- Leaflet Map Element with constrained stacking context -->
-                <div id="ukraineMap" class="w-full flex-1 rounded-xl min-h-[400px] border border-slate-800 relative"></div>
+                <div id="ukraineMap" class="w-full flex-1 rounded-xl min-h-[400px] border border-white/[0.08] relative shadow-inner"></div>
 
-                <!-- Map Legend (September 1 Reform) -->
-                <div class="mt-3 pt-2.5 border-t border-slate-800 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2.5">
-                    <div class="flex items-center gap-1.5" title="Офіційний жовтий рівень: робота дозволена при наявності укриття">
-                        <span class="w-3.5 h-3.5 rounded-full bg-yellow-400 inline-block shadow-sm shadow-yellow-500/50"></span>
+                <!-- Map Legend -->
+                <div class="mt-3 pt-2.5 border-t border-white/[0.08] flex flex-wrap items-center justify-between text-xs text-slate-400 gap-2.5">
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-3 h-3 rounded-full bg-yellow-400 inline-block shadow-sm shadow-yellow-500/50"></span>
                         <span class="font-medium text-yellow-300">Жовтий (БПЛА)</span>
                     </div>
-                    <div class="flex items-center gap-1.5" title="Пряма загроза ракет або балістики: негайно в укриття">
-                        <span class="w-3.5 h-3.5 rounded-full bg-red-500 inline-block shadow-sm shadow-red-500/50"></span>
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-3 h-3 rounded-full bg-red-500 inline-block shadow-sm shadow-red-500/50"></span>
                         <span class="font-medium text-red-400">Червоний (Ракети)</span>
                     </div>
-                    <div class="flex items-center gap-1.5" title="Загроза керованих авіабомб (КАБ) / тактичної авіації">
-                        <span class="w-3.5 h-3.5 rounded-full bg-orange-500 inline-block"></span>
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-3 h-3 rounded-full bg-orange-500 inline-block"></span>
                         <span class="font-medium text-orange-300">Помаранчевий (КАБ)</span>
                     </div>
                     <div class="flex items-center gap-1.5">
-                        <span class="w-3.5 h-3.5 rounded-full bg-emerald-600 inline-block"></span>
+                        <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
                         <span class="font-medium text-emerald-400">Зелений (Відбій)</span>
                     </div>
                 </div>
             </div>
 
             <!-- Region Fast Selector -->
-            <div class="bg-darkCard rounded-xl border border-darkBorder p-3">
+            <div class="shadcn-card p-3.5">
                 <label for="regionSelect" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                     Вибір області для детального аналізу
                 </label>
-                <select id="regionSelect" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-red-500 transition">
+                <select id="regionSelect" class="w-full bg-darkSurface border border-white/[0.1] rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-sky-500 transition shadow-inner">
                     <!-- Populated dynamically -->
                 </select>
             </div>
         </div>
 
         <!-- Right Column: Forecast & Region Timeline (6 cols) -->
-        <div class="lg:col-span-6 flex flex-col gap-4">
+        <div class="lg:col-span-6 flex flex-col gap-5">
             
             <!-- Near-Term High-Probability Alert Predictions Widget -->
-            <div class="bg-darkCard rounded-2xl border border-darkBorder p-4 shadow-xl">
-                <div class="flex items-center justify-between mb-2">
+            <div class="shadcn-card p-4">
+                <div class="flex items-center justify-between mb-2.5">
                     <div class="flex items-center gap-2">
                         <i class="fa-solid fa-wand-magic-sparkles text-amber-400 text-xs"></i>
                         <h3 class="font-bold text-xs uppercase tracking-wider text-slate-200">
                             Очікувані тривоги у найближчі 15–60 хв (Кінетичний прогноз)
                         </h3>
                     </div>
-                    <span class="text-[10px] text-amber-400 font-mono font-semibold">Векторний розрахунок</span>
+                    <span class="text-[10px] text-amber-300 font-mono font-semibold px-2 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20">Векторний розрахунок</span>
                 </div>
-                <div id="nearTermContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div id="nearTermContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <!-- Populated dynamically -->
                     <div class="text-xs text-slate-500 italic p-2">Загроз у найближчі 60 хв не прогнозується</div>
                 </div>
             </div>
 
             <!-- Region Status Header Card -->
-            <div class="bg-darkCard rounded-2xl border border-darkBorder p-5 shadow-xl relative overflow-hidden">
+            <div class="shadcn-card p-5 relative overflow-hidden">
                 <div class="flex flex-wrap items-start justify-between gap-4">
                     <div>
                         <div class="flex items-center gap-3">
-                            <h2 id="selectedRegionName" class="text-2xl font-black text-white tracking-wide">Київська область</h2>
-                            <span id="currentAlertBadge" class="px-3 py-1 text-xs font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                            <h2 id="selectedRegionName" class="text-2xl font-black text-white tracking-tight">Київська область</h2>
+                            <span id="currentAlertBadge" class="px-3 py-1 text-xs font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-sm">
                                 ВІДБІЙ ТРИВОГИ
                             </span>
                         </div>
@@ -441,22 +483,22 @@
                     </div>
 
                     <!-- 24h Risk Score Meter -->
-                    <div class="bg-slate-800/80 px-4 py-2 rounded-xl border border-slate-700 text-right">
+                    <div class="bg-darkSurface px-4 py-2 rounded-xl border border-white/[0.08] text-right shadow-sm">
                         <span class="text-[11px] uppercase tracking-wider text-slate-400 font-semibold block">Середній ризик 24г</span>
-                        <span id="avg24hRisk" class="text-xl font-black text-amber-400">15%</span>
+                        <span id="avg24hRisk" class="text-xl font-mono font-black text-amber-400">15%</span>
                     </div>
                 </div>
 
                 <!-- High Risk Forecast Windows -->
-                <div class="mt-4 pt-4 border-t border-slate-800">
-                    <div class="flex items-center justify-between mb-2">
+                <div class="mt-4 pt-4 border-t border-white/[0.08]">
+                    <div class="flex items-center justify-between mb-2.5">
                         <div class="flex items-center gap-2">
                             <i class="fa-solid fa-clock-rotate-left text-amber-400 text-xs"></i>
                             <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300">
                                 Прогнозовані вікна підвищеної небезпеки (найближчі 24 години)
                             </h3>
                         </div>
-                        <span class="text-[11px] text-slate-400">Математична модель</span>
+                        <span class="text-[11px] text-slate-400 font-mono">Математична модель</span>
                     </div>
                     
                     <div id="riskWindowsContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
@@ -466,13 +508,13 @@
             </div>
 
             <!-- Minute-by-Minute Timeline Chart (Past -> Live -> 24H Horizon) -->
-            <div class="bg-darkCard rounded-2xl border border-darkBorder p-5 shadow-xl">
+            <div class="shadcn-card p-5">
                 <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
                     <div class="flex items-center gap-2">
                         <i class="fa-solid fa-chart-line text-red-400"></i>
-                        <h3 class="font-bold text-sm text-white">Хвилинна шкала ймовірності тривоги (Timeline)</h3>
+                        <h3 class="font-bold text-sm text-white tracking-tight">Хвилинна шкала ймовірності тривоги (Timeline)</h3>
                     </div>
-                    <div class="flex items-center gap-2 text-[11px] text-slate-400">
+                    <div class="flex items-center gap-2 text-[11px] text-slate-400 font-mono">
                         <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-slate-600 inline-block"></span> Минуле (4г)</span>
                         <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-red-500 inline-block"></span> ЗАРАЗ</span>
                         <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded bg-amber-500 inline-block"></span> Прогноз (+24г)</span>
@@ -480,80 +522,80 @@
                 </div>
 
                 <!-- Timeline Guaranteed High-Precision Canvas Container -->
-                <div id="timelineContainer" class="relative w-full h-[220px] bg-slate-950/70 rounded-xl border border-slate-800/80 p-2 overflow-hidden flex items-center justify-center">
+                <div id="timelineContainer" class="relative w-full h-[220px] bg-black/50 rounded-xl border border-white/[0.08] p-2 overflow-hidden flex items-center justify-center shadow-inner">
                     <canvas id="timelineChart" width="600" height="210" class="w-full h-full block"></canvas>
                 </div>
                 
                 <!-- Interactive Timeline Navigation Controls -->
-                <div class="mt-3 pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
-                    <button id="btnViewPast" class="px-2.5 py-1 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1">
+                <div class="mt-3.5 pt-3 border-t border-white/[0.08] flex flex-wrap items-center justify-between gap-2">
+                    <button id="btnViewPast" class="emil-btn px-2.5 py-1 text-xs rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/[0.08] transition flex items-center gap-1">
                         <i class="fa-solid fa-arrow-left"></i> -4г (Минуле)
                     </button>
                     
                     <div class="flex items-center gap-1.5 flex-wrap">
-                        <button id="btnViewLive" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-red-500/20 text-red-400 border border-red-500/40 hover:bg-red-500/30 transition flex items-center gap-1">
+                        <button id="btnViewLive" class="emil-btn px-2.5 py-1 text-xs font-bold rounded-lg bg-red-500/20 text-red-300 border border-red-500/40 hover:bg-red-500/30 transition flex items-center gap-1 shadow-sm">
                             <span class="w-2 h-2 rounded-full bg-red-500 animate-ping inline-block"></span> ЗАРАЗ
                         </button>
-                        <button id="btnView6h" class="px-2.5 py-1 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+                        <button id="btnView6h" class="emil-btn px-2.5 py-1 text-xs rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/[0.08] transition">
                             +6 годин
                         </button>
-                        <button id="btnView12h" class="px-2.5 py-1 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+                        <button id="btnView12h" class="emil-btn px-2.5 py-1 text-xs rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/[0.08] transition">
                             +12 годин
                         </button>
-                        <button id="btnView24h" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/40 hover:bg-amber-500/30 transition">
+                        <button id="btnView24h" class="emil-btn px-2.5 py-1 text-xs font-semibold rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition">
                             +24г (Увесь прогноз)
                         </button>
                     </div>
 
-                    <button id="btnViewFuture" class="px-2.5 py-1 text-xs rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1">
+                    <button id="btnViewFuture" class="emil-btn px-2.5 py-1 text-xs rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-white/[0.08] transition flex items-center gap-1">
                         +24г вперед <i class="fa-solid fa-arrow-right"></i>
                     </button>
                 </div>
             </div>
 
-            <!-- Threat Breakdown Matrix -->
+            <!-- Threat Breakdown Matrix (Bento Row) -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div class="bg-darkCard p-3 rounded-xl border border-darkBorder">
+                <div class="shadcn-card p-3">
                     <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
                         <span>БПЛА Shahed</span>
                         <i class="fa-solid fa-paper-plane text-amber-400"></i>
                     </div>
-                    <div id="riskShahed" class="text-base font-bold text-white">45%</div>
+                    <div id="riskShahed" class="text-base font-mono font-bold text-white">45%</div>
                     <div class="w-full bg-slate-800 h-1.5 rounded-full mt-1.5 overflow-hidden">
-                        <div id="barShahed" class="bg-amber-400 h-full rounded-full" style="width: 45%"></div>
+                        <div id="barShahed" class="bg-amber-400 h-full rounded-full transition-all duration-300" style="width: 45%"></div>
                     </div>
                 </div>
 
-                <div class="bg-darkCard p-3 rounded-xl border border-darkBorder">
+                <div class="shadcn-card p-3">
                     <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
                         <span>МіГ-31К / Кинджал</span>
                         <i class="fa-solid fa-fighter-jet text-red-400"></i>
                     </div>
-                    <div id="riskMig" class="text-base font-bold text-white">65%</div>
+                    <div id="riskMig" class="text-base font-mono font-bold text-white">65%</div>
                     <div class="w-full bg-slate-800 h-1.5 rounded-full mt-1.5 overflow-hidden">
-                        <div id="barMig" class="bg-red-500 h-full rounded-full" style="width: 65%"></div>
+                        <div id="barMig" class="bg-red-500 h-full rounded-full transition-all duration-300" style="width: 65%"></div>
                     </div>
                 </div>
 
-                <div class="bg-darkCard p-3 rounded-xl border border-darkBorder">
+                <div class="shadcn-card p-3">
                     <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
                         <span>Балістика</span>
                         <i class="fa-solid fa-bomb text-rose-500"></i>
                     </div>
-                    <div id="riskBallistic" class="text-base font-bold text-white">30%</div>
+                    <div id="riskBallistic" class="text-base font-mono font-bold text-white">30%</div>
                     <div class="w-full bg-slate-800 h-1.5 rounded-full mt-1.5 overflow-hidden">
-                        <div id="barBallistic" class="bg-rose-500 h-full rounded-full" style="width: 30%"></div>
+                        <div id="barBallistic" class="bg-rose-500 h-full rounded-full transition-all duration-300" style="width: 30%"></div>
                     </div>
                 </div>
 
-                <div class="bg-darkCard p-3 rounded-xl border border-darkBorder">
+                <div class="shadcn-card p-3">
                     <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
                         <span>Стратегічні Ту-95</span>
                         <i class="fa-solid fa-plane-departure text-purple-400"></i>
                     </div>
-                    <div id="riskStrategic" class="text-base font-bold text-white">20%</div>
+                    <div id="riskStrategic" class="text-base font-mono font-bold text-white">20%</div>
                     <div class="w-full bg-slate-800 h-1.5 rounded-full mt-1.5 overflow-hidden">
-                        <div id="barStrategic" class="bg-purple-400 h-full rounded-full" style="width: 20%"></div>
+                        <div id="barStrategic" class="bg-purple-400 h-full rounded-full transition-all duration-300" style="width: 20%"></div>
                     </div>
                 </div>
             </div>
@@ -561,11 +603,11 @@
         </div>
 
         <!-- Bottom Full-Width Section: Live Parsed Multi-Source Stream (12 cols) -->
-        <div class="lg:col-span-12 bg-darkCard rounded-2xl border border-darkBorder p-4 shadow-xl mt-1">
+        <div class="lg:col-span-12 shadcn-card p-4 mt-1">
             <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                 <div class="flex items-center gap-2">
                     <i class="fa-solid fa-bolt text-amber-400"></i>
-                    <h3 class="font-bold text-sm text-white">Потік розпізнаних сповіщень у реальному часі (26 джерел)</h3>
+                    <h3 class="font-bold text-sm text-white tracking-tight">Потік розпізнаних сповіщень у реальному часі (26 джерел)</h3>
                 </div>
                 <span class="text-xs text-slate-400 font-mono">ПС ЗСУ • Ванёк • Генштаб • єРадар • ДСНС • alerts.in.ua</span>
             </div>
@@ -578,10 +620,10 @@
     </main>
 
     <!-- Footer -->
-    <footer class="bg-darkCard border-t border-darkBorder px-4 lg:px-8 py-3 text-center text-xs text-slate-400 relative z-10 w-full">
+    <footer class="bg-darkCard/80 border-t border-white/[0.08] px-4 lg:px-8 py-3.5 text-center text-xs text-slate-400 relative z-10 w-full backdrop-blur-md">
         <div class="w-full flex flex-wrap items-center justify-between gap-2">
             <span>UA Autonomous Air Raid Alert Prediction Engine • 100% автономний стек</span>
-            <span>FastAPI • Leaflet Maps • 26 Джерел • Векторний Радар</span>
+            <span class="font-mono text-[11px] text-slate-500">Design System: Vercel Geist • ShadCN • Emil Motion</span>
         </div>
     </footer>
 
@@ -589,7 +631,6 @@
     <script src="ukraine_geojson.js"></script>
     <script src="ukraine_raions_geojson.js"></script>
     <script src="app.js"></script>
-
-
 </body>
 </html>
+

@@ -25,6 +25,8 @@ let fullTimelineData = [];
 let currentTimelineFilter = "all";
 let radarEnabled = true;
 let hoverPointIndex = null;
+let activeRenderedTimelinePoints = [];
+let mapBoundsInitialized = false;
 let currentUserProfile = { username: null, region_id: 'UA-32', is_subscribed: false, precision_mode: 'standard' };
 
 // Web Audio Synthesizer
@@ -181,53 +183,104 @@ function updateHomeDistrictWidget() {
     }
 }
 
+function openLocationModal() {
+    const modal = document.getElementById('onboardingModal');
+    if (modal) {
+        populateOnboardingDropdowns();
+        modal.classList.remove('hidden');
+    }
+}
+
+function closeLocationModal() {
+    const modal = document.getElementById('onboardingModal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
+
 function initIntroSplash() {
     const splash = document.getElementById('introSplash');
-    const flagContainer = document.getElementById('flagContainer');
-    const pBar = document.getElementById('splashProgressBar');
+    const progressBar = document.getElementById('splashProgressBar');
+    const progressPercent = document.getElementById('splashProgressPercent');
     const statusText = document.getElementById('splashStatusText');
     const loadingSection = document.getElementById('splashLoadingSection');
     const onboardingCard = document.getElementById('onboardingCard');
-    const submitBtn = document.getElementById('onboardingSubmitBtn');
+    const splashOblastSelect = document.getElementById('splashOblastSelect');
+    const splashRaionSelect = document.getElementById('splashRaionSelect');
+    const splashSubmitBtn = document.getElementById('splashSubmitBtn');
 
-    if (!splash) return;
+    const submitBtn = document.getElementById('onboardingSubmitBtn');
+    const closeBtn = document.getElementById('onboardingModalCloseBtn');
+    const changeBtn = document.getElementById('btnHeaderChangeLocation');
+
+    if (closeBtn) closeBtn.onclick = closeLocationModal;
+    if (changeBtn) changeBtn.onclick = openLocationModal;
+
+    const populateSplashDropdowns = () => {
+        if (!splashOblastSelect || !splashRaionSelect) return;
+        const oblastList = [
+            { id: "UA-32", name: "Київська область" },
+            { id: "UA-30", name: "м. Київ" },
+            { id: "UA-05", name: "Вінницька область" },
+            { id: "UA-07", name: "Волинська область" },
+            { id: "UA-12", name: "Дніпропетровська область" },
+            { id: "UA-14", name: "Донецька область" },
+            { id: "UA-18", name: "Житомирська область" },
+            { id: "UA-21", name: "Закарпатська область" },
+            { id: "UA-23", name: "Запорізька область" },
+            { id: "UA-26", name: "Івано-Франківська область" },
+            { id: "UA-35", name: "Кіровоградська область" },
+            { id: "UA-44", name: "Луганська область" },
+            { id: "UA-46", name: "Львівська область" },
+            { id: "UA-48", name: "Миколаївська область" },
+            { id: "UA-51", name: "Одеська область" },
+            { id: "UA-53", name: "Полтавська область" },
+            { id: "UA-56", name: "Рівненська область" },
+            { id: "UA-59", name: "Сумська область" },
+            { id: "UA-61", name: "Тернопільська область" },
+            { id: "UA-63", name: "Харківська область" },
+            { id: "UA-65", name: "Херсонська область" },
+            { id: "UA-68", name: "Хмельницька область" },
+            { id: "UA-71", name: "Черкаська область" },
+            { id: "UA-74", name: "Чернігівська область" },
+            { id: "UA-77", name: "Чернівецька область" },
+            { id: "UA-43", name: "АР Крим" }
+        ];
+        splashOblastSelect.innerHTML = '';
+        oblastList.forEach(ob => {
+            const opt = document.createElement('option');
+            opt.value = ob.id;
+            opt.innerText = ob.name;
+            if (ob.id === 'UA-32') opt.selected = true;
+            splashOblastSelect.appendChild(opt);
+        });
+
+        const updateSplashRaions = (obId) => {
+            splashRaionSelect.innerHTML = '<option value="">Вся область (за замовчуванням)</option>';
+            if (typeof UKRAINE_RAIONS_GEOJSON !== 'undefined' && UKRAINE_RAIONS_GEOJSON.features) {
+                const raionNames = new Set();
+                UKRAINE_RAIONS_GEOJSON.features.forEach(f => {
+                    if (f.properties && f.properties.oblast_id === obId && f.properties.raion_name_ua) {
+                        raionNames.add(f.properties.raion_name_ua);
+                    }
+                });
+                const sorted = Array.from(raionNames).sort((a, b) => a.localeCompare(b, 'uk'));
+                sorted.forEach(rName => {
+                    const opt = document.createElement('option');
+                    opt.value = rName;
+                    opt.innerText = `${rName} район`;
+                    splashRaionSelect.appendChild(opt);
+                });
+            }
+        };
+        updateSplashRaions(splashOblastSelect.value);
+        splashOblastSelect.onchange = () => updateSplashRaions(splashOblastSelect.value);
+    };
 
     const savedOblast = localStorage.getItem('user_home_oblast');
-    const savedRaion = localStorage.getItem('user_home_raion');
-
     if (savedOblast) {
         selectedRegionId = savedOblast;
         updateHomeDistrictWidget();
-        
-        let progress = 35;
-        const interval = setInterval(() => {
-            progress += 30;
-            if (pBar) pBar.style.width = `${Math.min(100, progress)}%`;
-            if (progress >= 100) {
-                clearInterval(interval);
-                if (statusText) statusText.innerText = "Автономна синхронізація завершена";
-                setTimeout(dismissSplash, 400);
-            }
-        }, 120);
-    } else {
-        // First Launch: Smooth progress, flag lifts, then Onboarding form appears!
-        let progress = 20;
-        const interval = setInterval(() => {
-            progress += 25;
-            if (pBar) pBar.style.width = `${Math.min(100, progress)}%`;
-            if (progress >= 100) {
-                clearInterval(interval);
-                if (statusText) statusText.innerText = "Оберіть вашу область та район для сповіщень";
-                if (loadingSection) loadingSection.classList.add('hidden');
-                
-                // Lift Flag
-                if (flagContainer) flagContainer.classList.add('flag-lifted');
-                
-                // Show Onboarding Card
-                if (onboardingCard) onboardingCard.classList.remove('hidden');
-                populateOnboardingDropdowns();
-            }
-        }, 180);
     }
 
     if (submitBtn) {
@@ -243,17 +296,58 @@ function initIntroSplash() {
                 selectRegion(chosenOblast);
                 updateHomeDistrictWidget();
             }
-            dismissSplash();
+            closeLocationModal();
         };
     }
 
-    function dismissSplash() {
-        splash.classList.add('splash-hidden');
-        if (map) {
-            setTimeout(() => map.invalidateSize(), 300);
-        }
-        drawCanvasTimeline();
+    if (splashSubmitBtn) {
+        splashSubmitBtn.onclick = () => {
+            if (splashOblastSelect) {
+                const chosenOblast = splashOblastSelect.value || 'UA-32';
+                const chosenRaion = splashRaionSelect ? splashRaionSelect.value : '';
+                localStorage.setItem('user_home_oblast', chosenOblast);
+                localStorage.setItem('user_home_raion', chosenRaion);
+                selectedRegionId = chosenOblast;
+                selectRegion(chosenOblast);
+                updateHomeDistrictWidget();
+            }
+            if (splash) splash.classList.add('splash-hidden');
+            if (map) setTimeout(() => map.invalidateSize(), 200);
+        };
     }
+
+    // Smooth progressive loading animation
+    const updateProgress = (val, text) => {
+        if (progressBar) progressBar.style.width = `${val}%`;
+        if (progressPercent) progressPercent.innerText = `${val}%`;
+        if (statusText && text) statusText.innerText = text;
+    };
+
+    setTimeout(() => {
+        updateProgress(55, "Підключення до офіційних джерел тривог...");
+    }, 350);
+
+    setTimeout(() => {
+        updateProgress(85, "Синхронізація районів та векторного радару...");
+    }, 750);
+
+    setTimeout(() => {
+        updateProgress(100, "Готово!");
+        if (!localStorage.getItem('user_home_oblast')) {
+            if (loadingSection) loadingSection.classList.add('hidden');
+            if (onboardingCard) {
+                populateSplashDropdowns();
+                onboardingCard.classList.remove('hidden');
+            }
+        } else {
+            setTimeout(() => {
+                if (splash) splash.classList.add('splash-hidden');
+                if (map) setTimeout(() => map.invalidateSize(), 200);
+            }, 350);
+        }
+    }, 1150);
+
+    drawCanvasTimeline();
 }
 
 // 2. Leaflet Map with ESRI High-Res Satellite & Dark Layer Switcher
@@ -309,7 +403,42 @@ function initMap() {
     hotspotsLayer = L.layerGroup().addTo(map);
     radarTracksLayer = L.layerGroup().addTo(map);
 
-    // Re-render hotspots on zoom change for zoom-responsive sizing
+    // Persistent GeoJSON layers initialization
+    if (typeof UKRAINE_RAIONS_GEOJSON !== 'undefined') {
+        raionsLayer = L.geoJSON(UKRAINE_RAIONS_GEOJSON, {
+            style: (feature) => getRaionStyle(feature),
+            onEachFeature: (feature, layer) => {
+                const p = feature.properties || {};
+                const oblastId = p.oblast_id;
+                layer.on({
+                    mouseover: (e) => {
+                        const l = e.target;
+                        l.setStyle({ weight: 3.2, color: '#ffffff', opacity: 1 });
+                        l.bringToFront();
+                    },
+                    mouseout: (e) => {
+                        if (e.target && e.target.feature) {
+                            e.target.setStyle(getRaionStyle(e.target.feature));
+                        }
+                    },
+                    click: () => {
+                        if (oblastId) {
+                            selectRegion(oblastId);
+                        }
+                    }
+                });
+            }
+        }).addTo(map);
+    }
+
+    if (typeof UKRAINE_GEOJSON !== 'undefined') {
+        geojsonLayer = L.geoJSON(UKRAINE_GEOJSON, {
+            style: (feature) => getRegionStyle(feature.properties.id),
+            interactive: false
+        }).addTo(map);
+    }
+
+    // Re-render hotspots on zoom change
     map.on('zoomend', () => {
         renderHotspotMarkers();
     });
@@ -317,26 +446,54 @@ function initMap() {
     renderGeoJsonLayer();
 }
 
-function isRaionMatch(raionFeature, subRegionsList) {
-    if (!subRegionsList || subRegionsList.length === 0) return false;
+function normalizeUaString(str) {
+    if (!str) return '';
+    return str.toLowerCase().replace(/[’‘ʼ`"']/g, "'").replace(/[_\-]/g, ' ').trim();
+}
+
+function getMatchedRaionObject(raionFeature, subRegionsList) {
+    if (!subRegionsList || subRegionsList.length === 0) return null;
     const p = raionFeature.properties || {};
-    const rName = (p.raion_name_ua || '').toLowerCase();
+    const rId = (p.raion_id || '').toUpperCase();
+    const rNameRaw = p.raion_name_ua || '';
+    const rNorm = normalizeUaString(rNameRaw);
+    const rNoApos = rNorm.replace(/'/g, '');
+    const rStem = rNorm.replace(/(ський|цький|зький| район)$/g, '').trim();
 
     for (const sub of subRegionsList) {
-        const subName = (sub.name_ua || '').toLowerCase();
-        if (subName.includes(rName) || rName.includes(subName)) return true;
-        
-        const stem = rName.replace(/(ський|цький|зький| район)$/g, '').trim();
-        if (stem && stem.length >= 3 && subName.includes(stem)) return true;
+        if (typeof sub === 'string') {
+            const sNorm = normalizeUaString(sub);
+            const sNoApos = sNorm.replace(/'/g, '');
+            if (sub.toUpperCase() === rId || (sNorm && (sNorm.includes(rNorm) || rNorm.includes(sNorm) || sNoApos.includes(rNoApos) || rNoApos.includes(sNoApos))) || (rStem && rStem.length >= 3 && sNorm.includes(rStem))) {
+                return { name_ua: sub, alert_level: 'YELLOW' };
+            }
+            continue;
+        }
+        if (typeof sub === 'object' && sub !== null) {
+            const subId = (sub.id || sub.raion_id || '').toUpperCase();
+            if (subId && subId === rId) return sub;
+            
+            const subName = normalizeUaString(sub.name_ua || sub.name || '');
+            const subNoApos = subName.replace(/'/g, '');
+            if (subName && (subName.includes(rNorm) || rNorm.includes(subName) || subNoApos.includes(rNoApos) || rNoApos.includes(subNoApos))) return sub;
+            if (rStem && rStem.length >= 3 && subName.includes(rStem)) return sub;
+            if (rId === 'UA3200' && (subId === 'UA3210' || subName.includes('вишгород') || subName.includes('чорнобиль'))) return sub;
 
-        if (sub.aliases) {
-            for (const al of sub.aliases) {
-                const alLower = al.toLowerCase();
-                if (rName.includes(alLower) || alLower.includes(stem)) return true;
+            if (sub.aliases && Array.isArray(sub.aliases)) {
+                for (const al of sub.aliases) {
+                    const alNorm = normalizeUaString(al);
+                    if (alNorm && (rNorm.includes(alNorm) || alNorm.includes(rNorm) || (rStem && rStem.length >= 3 && alNorm.includes(rStem)))) {
+                        return sub;
+                    }
+                }
             }
         }
     }
-    return false;
+    return null;
+}
+
+function isRaionMatch(raionFeature, subRegionsList) {
+    return getMatchedRaionObject(raionFeature, subRegionsList) !== null;
 }
 
 function getRaionStyle(feature) {
@@ -401,19 +558,21 @@ function getRaionStyle(feature) {
         };
     }
 
-    const alertLvl = reg.alert_level || 'YELLOW';
-    const activeFill = alertLvl === 'RED' ? '#ef4444' : (alertLvl === 'ORANGE' ? '#f97316' : '#eab308');
-    const activeStroke = alertLvl === 'RED' ? '#fca5a5' : (alertLvl === 'ORANGE' ? '#fdba74' : '#fde047');
+    const parentLvl = reg.alert_level || 'YELLOW';
 
     if (reg.is_partial) {
-        // Partial alert in oblast: ONLY the specific matched district lights up!
-        if (isRaionMatch(feature, reg.sub_regions)) {
+        // Partial alert in oblast: ONLY specific matched districts light up in their exact threat color
+        const matchedSub = getMatchedRaionObject(feature, reg.sub_regions);
+        if (matchedSub) {
+            const rLevel = (typeof matchedSub === 'object' && matchedSub.alert_level) ? matchedSub.alert_level : parentLvl;
+            const activeFill = rLevel === 'RED' ? '#ef4444' : (rLevel === 'ORANGE' ? '#f97316' : '#eab308');
+            const activeStroke = rLevel === 'RED' ? '#fca5a5' : (rLevel === 'ORANGE' ? '#fdba74' : '#fef08a');
             return {
                 fillColor: activeFill,
-                weight: 2.8,
+                weight: 2.5,
                 opacity: 1,
                 color: '#ffffff',
-                fillOpacity: 0.92,
+                fillOpacity: 0.90,
                 dashArray: ''
             };
         } else {
@@ -429,12 +588,14 @@ function getRaionStyle(feature) {
     }
 
     // Full oblast alert -> all districts in oblast are active
+    const activeFill = parentLvl === 'RED' ? '#ef4444' : (parentLvl === 'ORANGE' ? '#f97316' : '#eab308');
+    const activeStroke = parentLvl === 'RED' ? '#fca5a5' : (parentLvl === 'ORANGE' ? '#fdba74' : '#fef08a');
     return {
         fillColor: activeFill,
         weight: 1.2,
         opacity: 0.9,
         color: activeStroke,
-        fillOpacity: 0.82
+        fillOpacity: 0.85
     };
 }
 
@@ -469,7 +630,7 @@ function getRegionStyle(regionId) {
                 fillColor: 'transparent',
                 weight: isSelected ? 3.2 : 2.0,
                 opacity: 0.9,
-                color: isSelected ? '#ffffff' : '#f97316',
+                color: isSelected ? '#ffffff' : '#facc15',
                 dashArray: '6, 4',
                 fillOpacity: 0
             };
@@ -496,104 +657,86 @@ function getRegionStyle(regionId) {
 }
 
 function renderGeoJsonLayer() {
-    if (geojsonLayer) {
-        map.removeLayer(geojsonLayer);
-    }
+    if (!map) return;
+
+    // Dynamic style & tooltip update on persistent layers (Zero DOM churn / No disappearing polygons on zoom)
     if (raionsLayer) {
-        map.removeLayer(raionsLayer);
-    }
+        raionsLayer.eachLayer(layer => {
+            const feature = layer.feature;
+            layer.setStyle(getRaionStyle(feature));
+            
+            const p = (feature && feature.properties) || {};
+            const raionName = p.raion_name_ua || 'Район';
+            const oblastName = p.oblast_name_ua || '';
+            const oblastId = p.oblast_id;
+            const raionTitle = (raionName.includes('район') || raionName.includes('зона') || ['Київ', 'Севастополь'].includes(raionName)) ? raionName : `${raionName} район`;
+            
+            let tooltipHtml = `<div class="p-1">
+                <div class="font-bold text-xs text-white">📍 ${raionTitle}</div>
+                ${oblastName && oblastName !== raionName ? `<div class="text-[10px] text-slate-400">${oblastName} область</div>` : ''}
+            `;
 
-    // 1. Render Raions Polygons Layer (Detailed Districts Level)
-    if (typeof UKRAINE_RAIONS_GEOJSON !== 'undefined') {
-        raionsLayer = L.geoJSON(UKRAINE_RAIONS_GEOJSON, {
-            style: (feature) => getRaionStyle(feature),
-            onEachFeature: (feature, layer) => {
-                const p = feature.properties || {};
-                const raionName = p.raion_name_ua || 'Район';
-                const oblastName = p.oblast_name_ua || '';
-                const oblastId = p.oblast_id;
-
-                let tooltipHtml = `<div class="p-1">
-                    <div class="font-bold text-xs text-white">📍 ${raionName} район</div>
-                    ${oblastName ? `<div class="text-[10px] text-slate-400">${oblastName} область</div>` : ''}
-                `;
-
-                if (activeForecastStepIndex !== null && nationalMatrix && nationalMatrix.steps && nationalMatrix.steps[activeForecastStepIndex]) {
-                    const step = nationalMatrix.steps[activeForecastStepIndex];
-                    const prob = Math.round(((step.regions_risk && step.regions_risk[oblastId]) || 0) * 100);
-                    const lvl = (step.regions_alert_level && step.regions_alert_level[oblastId]) || 'CLEAR';
-                    
-                    tooltipHtml += `<div class="text-[10px] font-mono text-sky-300 mt-0.5">Прогноз на ${step.time_display}</div>`;
-                    if (lvl === 'YELLOW') {
-                        tooltipHtml += `<div class="text-xs text-yellow-300 font-bold mt-0.5">🟡 ЖОВТИЙ (БПЛА) • ${prob}%</div>`;
-                    } else if (lvl === 'RED') {
-                        tooltipHtml += `<div class="text-xs text-red-400 font-bold mt-0.5">🔴 ЧЕРВОНИЙ (РАКЕТИ) • ${prob}%</div>`;
-                    } else if (lvl === 'ORANGE') {
-                        tooltipHtml += `<div class="text-xs text-orange-400 font-bold mt-0.5">🟠 ПОМАРАНЧЕВИЙ (КАБ) • ${prob}%</div>`;
+            if (activeForecastStepIndex !== null && nationalMatrix && nationalMatrix.steps && nationalMatrix.steps[activeForecastStepIndex]) {
+                const step = nationalMatrix.steps[activeForecastStepIndex];
+                const prob = Math.round(((step.regions_risk && step.regions_risk[oblastId]) || 0) * 100);
+                const lvl = (step.regions_alert_level && step.regions_alert_level[oblastId]) || 'CLEAR';
+                
+                tooltipHtml += `<div class="text-[10px] font-mono text-sky-300 mt-0.5">Прогноз на ${step.time_display}</div>`;
+                if (lvl === 'YELLOW') {
+                    tooltipHtml += `<div class="text-xs text-yellow-300 font-bold mt-0.5">🟡 ЖОВТИЙ (БПЛА) • ${prob}%</div>`;
+                } else if (lvl === 'RED') {
+                    tooltipHtml += `<div class="text-xs text-red-400 font-bold mt-0.5">🔴 ЧЕРВОНИЙ (РАКЕТИ) • ${prob}%</div>`;
+                } else if (lvl === 'ORANGE') {
+                    tooltipHtml += `<div class="text-xs text-orange-400 font-bold mt-0.5">🟠 ПОМАРАНЧЕВИЙ (КАБ) • ${prob}%</div>`;
+                } else {
+                    tooltipHtml += `<div class="text-[11px] text-emerald-400 font-semibold mt-0.5">🟢 Спокійно (${prob}% фон)</div>`;
+                }
+            } else {
+                const regData = nationalOverview ? nationalOverview.regions.find(r => r.id === oblastId) : null;
+                if (regData && regData.is_active) {
+                    const matchedSub = getMatchedRaionObject(feature, regData.sub_regions);
+                    const isThisRaionActive = !regData.is_partial || matchedSub !== null;
+                    if (isThisRaionActive) {
+                        const lvl = (matchedSub && matchedSub.alert_level) ? matchedSub.alert_level : (regData.alert_level || 'YELLOW');
+                        const lvlTitle = lvl === 'RED' ? '🔴 ЧЕРВОНИЙ (РАКЕТИ)' : (lvl === 'ORANGE' ? '🟠 ПОМАРАНЧЕВИЙ (КАБ)' : '🟡 ЖОВТИЙ (БПЛА)');
+                        const lvlColor = lvl === 'RED' ? 'text-red-400' : (lvl === 'ORANGE' ? 'text-orange-400' : 'text-yellow-400');
+                        tooltipHtml += `<div class="text-xs ${lvlColor} font-bold mt-0.5">${lvlTitle}</div>`;
+                        const reasonText = (matchedSub && matchedSub.reason) || regData.threat_title;
+                        if (reasonText) {
+                            tooltipHtml += `<div class="text-[10px] text-slate-300">${reasonText}</div>`;
+                        }
                     } else {
-                        tooltipHtml += `<div class="text-[11px] text-emerald-400 font-semibold mt-0.5">🟢 Спокійно (${prob}% фон)</div>`;
+                        tooltipHtml += `<div class="text-[11px] text-slate-400 mt-0.5">🟢 Без прямої загрози в цьому районі</div>`;
                     }
                 } else {
-                    const regData = nationalOverview ? nationalOverview.regions.find(r => r.id === oblastId) : null;
-                    if (regData && regData.is_active) {
-                        const isThisRaionActive = !regData.is_partial || isRaionMatch(feature, regData.sub_regions);
-                        if (isThisRaionActive) {
-                            const lvl = regData.alert_level || 'YELLOW';
-                            const lvlTitle = lvl === 'RED' ? '🔴 ЧЕРВОНИЙ (РАКЕТИ)' : (lvl === 'ORANGE' ? '🟠 ПОМАРАНЧЕВИЙ (КАБ)' : '🟡 ЖОВТИЙ (БПЛА)');
-                            const lvlColor = lvl === 'RED' ? 'text-red-400' : (lvl === 'ORANGE' ? 'text-orange-400' : 'text-yellow-400');
-                            tooltipHtml += `<div class="text-xs ${lvlColor} font-bold mt-0.5">${lvlTitle}</div>`;
-                            if (regData.threat_title) {
-                                tooltipHtml += `<div class="text-[10px] text-slate-300">${regData.threat_title}</div>`;
-                            }
-                        } else {
-                            tooltipHtml += `<div class="text-[11px] text-slate-400 mt-0.5">🟢 Без прямої загрози в цьому районі</div>`;
-                        }
-                    } else {
-                        tooltipHtml += `<div class="text-[11px] text-emerald-400 font-semibold mt-0.5">🟢 Відбій загрози</div>`;
-                    }
+                    tooltipHtml += `<div class="text-[11px] text-emerald-400 font-semibold mt-0.5">🟢 Відбій загрози</div>`;
                 }
-                tooltipHtml += `</div>`;
-
-                layer.bindTooltip(tooltipHtml, {
-                    sticky: true,
-                    direction: 'top',
-                    className: 'bg-slate-950 text-white border border-slate-700 px-2.5 py-1.5 rounded-lg text-xs font-sans shadow-xl'
-                });
-
-                layer.on({
-                    mouseover: (e) => {
-                        const l = e.target;
-                        l.setStyle({ weight: 3.2, color: '#ffffff', opacity: 1 });
-                        l.bringToFront();
-                    },
-                    mouseout: (e) => {
-                        if (raionsLayer) raionsLayer.resetStyle(e.target);
-                    },
-                    click: () => {
-                        if (oblastId) {
-                            selectRegion(oblastId);
-                        }
-                    }
-                });
             }
-        }).addTo(map);
+            tooltipHtml += `</div>`;
+            layer.bindTooltip(tooltipHtml, {
+                sticky: true,
+                direction: 'top',
+                className: 'bg-slate-950 text-white border border-slate-700 px-2.5 py-1.5 rounded-lg text-xs font-sans shadow-xl'
+            });
+        });
     }
 
-    // 2. Render Oblast Outline Layer (for clean oblast boundaries)
-    if (typeof UKRAINE_GEOJSON !== 'undefined') {
-        geojsonLayer = L.geoJSON(UKRAINE_GEOJSON, {
-            style: (feature) => getRegionStyle(feature.properties.id),
-            interactive: false
-        }).addTo(map);
+    if (geojsonLayer) {
+        geojsonLayer.setStyle(feature => getRegionStyle(feature.properties.id));
     }
 
     renderHotspotMarkers();
     renderRadarTracks();
 
-    if (raionsLayer && raionsLayer.getLayers().length > 0) {
-        map.fitBounds(raionsLayer.getBounds(), { padding: [10, 10] });
-    } else if (geojsonLayer && geojsonLayer.getLayers().length > 0) {
-        map.fitBounds(geojsonLayer.getBounds(), { padding: [10, 10] });
+    // Fit map bounds ONCE on initial startup, never resetting user zoom during live data updates
+    if (!mapBoundsInitialized) {
+        if (raionsLayer && raionsLayer.getLayers().length > 0) {
+            map.fitBounds(raionsLayer.getBounds(), { padding: [10, 10] });
+            mapBoundsInitialized = true;
+        } else if (geojsonLayer && geojsonLayer.getLayers().length > 0) {
+            map.fitBounds(geojsonLayer.getBounds(), { padding: [10, 10] });
+            mapBoundsInitialized = true;
+        }
     }
 }
 
@@ -760,6 +903,7 @@ function drawCanvasTimeline() {
     }
 
     if (points.length < 2) points = fullTimelineData;
+    activeRenderedTimelinePoints = points;
 
     const padLeft = 38;
     const padRight = 15;
@@ -869,10 +1013,10 @@ function drawCanvasTimeline() {
 
         const pct = Math.round(hoverPt.prob * 100);
         const timeStr = `${hoverPt.data.time_display} ${hoverPt.data.is_live ? '(ЗАРАЗ)' : (hoverPt.data.is_past ? '(Минуле)' : '(Прогноз)')}`;
-        const threatStr = `Загроза: ${hoverPt.data.threat_title}`;
+        const threatStr = hoverPt.data.threat_title || (pct >= 50 ? 'Підвищена ймовірність' : 'Спокійно');
 
-        ctx.font = 'bold 11px sans-serif';
-        const boxW = 160;
+        ctx.font = '600 11px sans-serif';
+        const boxW = 190;
         const boxH = 46;
         let boxX = hoverPt.x - boxW / 2;
         if (boxX < padLeft) boxX = padLeft;
@@ -881,18 +1025,18 @@ function drawCanvasTimeline() {
         if (boxY < padTop) boxY = hoverPt.y + 12;
 
         ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
-        ctx.strokeStyle = '#334155';
+        ctx.strokeStyle = '#475569';
         ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.roundRect(boxX, boxY, boxW, boxH, 6);
+        ctx.roundRect(boxX, boxY, boxW, boxH, 8);
         ctx.fill();
         ctx.stroke();
 
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'left';
-        ctx.fillText(`Час: ${timeStr}`, boxX + 8, boxY + 16);
+        ctx.fillText(`Час: ${timeStr}`, boxX + 10, boxY + 17);
         ctx.fillStyle = pct >= 70 ? '#ef4444' : (pct >= 45 ? '#f97316' : '#22c55e');
-        ctx.fillText(`Ймовірність: ${pct}% • ${threatStr}`, boxX + 8, boxY + 34);
+        ctx.fillText(`Ймовірність: ${pct}% • ${threatStr}`, boxX + 10, boxY + 34);
     }
 }
 
@@ -1047,9 +1191,13 @@ async function loadRegionsList() {
 
 function selectRegion(regionId) {
     selectedRegionId = regionId;
-    document.getElementById('regionSelect').value = regionId;
+    const regSelect = document.getElementById('regionSelect');
+    if (regSelect) regSelect.value = regionId;
     if (geojsonLayer) {
         geojsonLayer.setStyle((feature) => getRegionStyle(feature.properties.id));
+    }
+    if (raionsLayer) {
+        raionsLayer.setStyle((feature) => getRaionStyle(feature));
     }
     loadRegionForecast(regionId);
 }
@@ -1339,10 +1487,11 @@ function initControls() {
             const padLeft = 38;
             const padRight = 15;
             const plotW = rect.width - padLeft - padRight;
+            const pts = activeRenderedTimelinePoints.length > 1 ? activeRenderedTimelinePoints : fullTimelineData;
 
-            if (mouseX >= padLeft && mouseX <= rect.width - padRight && fullTimelineData.length > 1) {
+            if (mouseX >= padLeft && mouseX <= rect.width - padRight && pts.length > 1) {
                 const ratio = (mouseX - padLeft) / plotW;
-                hoverPointIndex = Math.min(fullTimelineData.length - 1, Math.max(0, Math.round(ratio * (fullTimelineData.length - 1))));
+                hoverPointIndex = Math.min(pts.length - 1, Math.max(0, Math.round(ratio * (pts.length - 1))));
             } else {
                 hoverPointIndex = null;
             }
@@ -1451,6 +1600,9 @@ function setLiveMode() {
     if (geojsonLayer) {
         geojsonLayer.setStyle(feature => getRegionStyle(feature.properties.id));
     }
+    if (raionsLayer) {
+        raionsLayer.setStyle(feature => getRaionStyle(feature));
+    }
 }
 
 function setForecastStep(index) {
@@ -1482,6 +1634,9 @@ function setForecastStep(index) {
 
     if (geojsonLayer) {
         geojsonLayer.setStyle(feature => getRegionStyle(feature.properties.id));
+    }
+    if (raionsLayer) {
+        raionsLayer.setStyle(feature => getRaionStyle(feature));
     }
 }
 

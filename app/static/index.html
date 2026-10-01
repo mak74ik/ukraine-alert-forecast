@@ -138,6 +138,29 @@
             background: #334155;
             border-radius: 4px;
         }
+        /* Hotspot district pulse ring */
+        @keyframes hotspot-pulse {
+            0% { opacity: 0.6; transform: scale(0.85); }
+            50% { opacity: 0.25; transform: scale(1.15); }
+            100% { opacity: 0.6; transform: scale(0.85); }
+        }
+        .hotspot-pulse-ring {
+            animation: hotspot-pulse 2.2s infinite ease-in-out;
+        }
+        .hotspot-label-container {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        .hotspot-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-align: center;
+            white-space: nowrap;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.85), 0 0 8px rgba(0,0,0,0.6);
+            pointer-events: none;
+            letter-spacing: 0.02em;
+        }
     </style>
 </head>
 <body class="bg-darkBg text-slate-200 font-sans min-h-screen flex flex-col antialiased selection:bg-red-500 selection:text-white relative overflow-x-hidden">
@@ -183,8 +206,8 @@
     </div>
 
     <!-- Header / Navbar -->
-    <header class="bg-darkCard/95 backdrop-blur-md border-b border-darkBorder sticky top-0 z-50 px-4 py-3 shadow-lg">
-        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+    <header class="bg-darkCard/95 backdrop-blur-md border-b border-darkBorder sticky top-0 z-50 px-4 lg:px-8 py-3 shadow-lg w-full">
+        <div class="w-full flex flex-wrap items-center justify-between gap-4">
             <div class="flex items-center space-x-3">
                 <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 to-amber-500 flex items-center justify-center shadow-lg shadow-red-500/20">
                     <i class="fa-solid fa-radar text-white text-lg animate-spin" style="animation-duration: 10s;"></i>
@@ -234,16 +257,16 @@
                     <i class="fa-solid fa-rotate text-emerald-400"></i> Синхронізувати
                 </button>
 
-                <!-- Audio alert toggle -->
-                <button id="soundToggleBtn" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition" title="Увімкнути/вимкнути звук">
-                    <i class="fa-solid fa-volume-high"></i>
+                <!-- Audio alert toggle (muted by default) -->
+                <button id="soundToggleBtn" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 transition" title="Увімкнути звук сирен">
+                    <i class="fa-solid fa-volume-xmark text-slate-500"></i>
                 </button>
             </div>
         </div>
     </header>
 
     <!-- Main Content -->
-    <main class="max-w-7xl mx-auto w-full p-4 grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 relative z-10">
+    <main class="w-full px-4 lg:px-8 py-4 grid grid-cols-1 lg:grid-cols-12 gap-5 flex-1 relative z-10">
 
         <!-- Left Column: Map of Ukraine & Region Fast Selector (6 cols) -->
         <div class="lg:col-span-6 flex flex-col gap-4">
@@ -506,8 +529,8 @@
     </main>
 
     <!-- Footer -->
-    <footer class="bg-darkCard border-t border-darkBorder px-4 py-3 text-center text-xs text-slate-400 relative z-10">
-        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+    <footer class="bg-darkCard border-t border-darkBorder px-4 lg:px-8 py-3 text-center text-xs text-slate-400 relative z-10 w-full">
+        <div class="w-full flex flex-wrap items-center justify-between gap-2">
             <span>UA Autonomous Air Raid Alert Prediction Engine • 100% автономний стек</span>
             <span>FastAPI • Leaflet Maps • 26 Джерел • Векторний Радар</span>
         </div>
@@ -515,6 +538,7 @@
 
     <!-- Application JavaScript -->
     <script src="ukraine_geojson.js"></script>
+    <script src="ukraine_raions_geojson.js"></script>
     <script src="app.js"></script>
 
     <!-- Light & Native Telegram Auth Modal (Zero Friction, 100% Optional) -->

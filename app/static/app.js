@@ -119,9 +119,13 @@ function animateNumber(element, startVal, endVal, duration = 500, suffix = '%') 
 }
 
 /**
- * 120 FPS Laser-Masked Specular Rim & 3D Spring Perspective Tilt Engine
+ * 120 FPS Laser-Masked Specular Rim & 3D Spring Perspective Tilt Engine (Desktop only)
  */
 function initLaserRimAndCardMotion() {
+    // Disable completely on mobile touch screens to ensure zero lag and prevent artificial cursor effects
+    if (window.matchMedia('(hover: none), (pointer: coarse)').matches) {
+        return;
+    }
     const cards = document.querySelectorAll('.shadcn-card');
     
     cards.forEach(card => {
@@ -1256,6 +1260,7 @@ async function loadRegionForecast(regionId) {
         drawCanvasTimeline();
 
         updateThreatBreakdown(data);
+        checkAlertStateChange(data);
 
     } catch (e) {
         console.error("Failed to load region forecast:", e);
@@ -1769,11 +1774,202 @@ function initScrubberControls() {
     }
 }
 
+// ==========================================================================
+// MOBILE APP BOTTOM NAVIGATION & NATIVE ALERT NOTIFICATIONS
+// ==========================================================================
+let lastRegionAlertState = null;
+let notificationsEnabled = localStorage.getItem('ua_alerts_notif_enabled') === 'true';
+
+async function initNotificationEngine() {
+    const notifBtn = document.getElementById('notifToggleBtn');
+    updateNotifButtonUI();
+
+    if (notifBtn) {
+        notifBtn.addEventListener('click', async () => {
+            playMicroHaptic('switch');
+            if (!notificationsEnabled) {
+                const granted = await requestNotificationPermission();
+                if (granted) {
+                    notificationsEnabled = true;
+                    localStorage.setItem('ua_alerts_notif_enabled', 'true');
+                    showInAppToast('Сповіщення увімкнено', 'fa-bell', 'text-amber-400');
+                    sendMobileNotification('Сповіщення активні', 'Ви будете отримувати тривоги та відбої для обраного регіону');
+                } else {
+                    notificationsEnabled = false;
+                    localStorage.setItem('ua_alerts_notif_enabled', 'false');
+                    showInAppToast('Дозвіл на сповіщення відхилено', 'fa-bell-slash', 'text-red-400');
+                }
+            } else {
+                notificationsEnabled = false;
+                localStorage.setItem('ua_alerts_notif_enabled', 'false');
+                showInAppToast('Сповіщення вимкнено', 'fa-bell-slash', 'text-slate-400');
+            }
+            updateNotifButtonUI();
+        });
+    }
+}
+
+function updateNotifButtonUI() {
+    const notifBtn = document.getElementById('notifToggleBtn');
+    if (!notifBtn) return;
+    if (notificationsEnabled) {
+        notifBtn.innerHTML = '<i class="fa-solid fa-bell text-amber-400"></i>';
+        notifBtn.className = 'w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center transition active:scale-95 shadow-sm';
+    } else {
+        notifBtn.innerHTML = '<i class="fa-solid fa-bell-slash text-slate-400"></i>';
+        notifBtn.className = 'w-9 h-9 rounded-xl bg-white/5 border border-white/10 text-slate-400 hover:text-white flex items-center justify-center transition active:scale-95';
+    }
+}
+
+async function requestNotificationPermission() {
+    // 1. Capacitor Native Android LocalNotifications
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) {
+        try {
+            const status = await window.Capacitor.Plugins.LocalNotifications.requestPermissions();
+            return status.display === 'granted';
+        } catch (e) {
+            console.warn("Capacitor local notifications error:", e);
+        }
+    }
+    // 2. Browser standard Notifications API
+    if ('Notification' in window) {
+        const perm = await Notification.requestPermission();
+        return perm === 'granted';
+    }
+    return false;
+}
+
+async function sendMobileNotification(title, body, isAlarm = false) {
+    if (!notificationsEnabled) return;
+    
+    // Haptic vibration
+    if (navigator.vibrate) {
+        if (isAlarm) {
+            navigator.vibrate([400, 150, 400, 150, 600]);
+        } else {
+            navigator.vibrate([150, 80, 150]);
+        }
+    }
+    
+    // 1. Capacitor Native Android Local Notification
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) {
+        try {
+            await window.Capacitor.Plugins.LocalNotifications.schedule({
+                notifications: [
+                    {
+                        title: title,
+                        body: body,
+                        id: Math.floor(Date.now() % 100000),
+                        schedule: { at: new Date(Date.now() + 100) },
+                        sound: isAlarm ? 'res://raw/alert_siren' : null,
+                        smallIcon: 'ic_stat_name',
+                        actionTypeId: '',
+                        extra: null
+                    }
+                ]
+            });
+            return;
+        } catch (e) {
+            console.warn("Capacitor push error:", e);
+        }
+    }
+    
+    // 2. Web Notification fallback
+    if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+            new Notification(title, {
+                body: body,
+                icon: '/icon-192.png',
+                badge: '/icon-192.png',
+                vibrate: isAlarm ? [400, 150, 400, 150, 600] : [150, 80, 150]
+            });
+        } catch (e) {
+            console.warn("Browser Notification error:", e);
+        }
+    }
+}
+
+function checkAlertStateChange(regionData) {
+    if (lastRegionAlertState === null) {
+        lastRegionAlertState = regionData.is_active_now;
+        return;
+    }
+    if (lastRegionAlertState !== regionData.is_active_now) {
+        lastRegionAlertState = regionData.is_active_now;
+        if (regionData.is_active_now) {
+            const levelStr = regionData.alert_level || 'ALERT';
+            sendMobileNotification(
+                `🚨 ПОВІТРЯНА ТРИВОГА: ${regionData.region_name}`,
+                `Зафіксовано загрозу (${levelStr}). Негайно прямуйте в укриття!`,
+                true
+            );
+            playAlertSiren();
+        } else {
+            sendMobileNotification(
+                `🟢 ВІДБІЙ ТРИВОГИ: ${regionData.region_name}`,
+                `Загроза минула. Обстановка нормалізована.`,
+                false
+            );
+        }
+    }
+}
+
+function initMobileBottomNav() {
+    const tabs = [
+        { btnId: 'tabNavMap', sectionId: 'sectionMap' },
+        { btnId: 'tabNavForecast', sectionId: 'sectionForecast' },
+        { btnId: 'tabNavHome', sectionId: 'sectionHome' },
+        { btnId: 'tabNavFeed', sectionId: 'sectionFeed' },
+    ];
+
+    tabs.forEach(tab => {
+        const btn = document.getElementById(tab.btnId);
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+            playMicroHaptic('switch');
+            
+            tabs.forEach(t => {
+                const b = document.getElementById(t.btnId);
+                const s = document.getElementById(t.sectionId);
+                if (b) {
+                    const pill = b.querySelector('.mobile-tab-pill');
+                    if (t.btnId === tab.btnId) {
+                        b.classList.add('text-blue-400');
+                        b.classList.remove('text-slate-400');
+                        if (pill) pill.classList.add('bg-blue-500/20');
+                    } else {
+                        b.classList.remove('text-blue-400');
+                        b.classList.add('text-slate-400');
+                        if (pill) pill.classList.remove('bg-blue-500/20');
+                    }
+                }
+                if (s) {
+                    if (t.btnId === tab.btnId) {
+                        s.classList.remove('hidden-mobile');
+                    } else {
+                        s.classList.add('hidden-mobile');
+                    }
+                }
+            });
+
+            if (tab.sectionId === 'sectionMap' && map) {
+                setTimeout(() => map.invalidateSize(), 150);
+            }
+            if (tab.sectionId === 'sectionForecast') {
+                setTimeout(() => drawCanvasTimeline(), 150);
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    });
+}
+
 window.addEventListener('DOMContentLoaded', async () => {
     initIntroSplash();
     initMap();
     initControls();
     initScrubberControls();
+    initMobileBottomNav();
+    initNotificationEngine();
     initLaserRimAndCardMotion();
     
     await loadRegionsList();

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">UA Alert Forecast</string>
+    <string name="title_activity_main">UA Alert Forecast</string>
+    <string name="package_name">ua.alert.forecast</string>
+    <string name="custom_url_scheme">ua.alert.forecast</string>
+</resources>

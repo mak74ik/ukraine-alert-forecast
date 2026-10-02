@@ -29,8 +29,177 @@ let activeRenderedTimelinePoints = [];
 let mapBoundsInitialized = false;
 let currentUserProfile = { username: null, region_id: 'UA-32', is_subscribed: false, precision_mode: 'standard' };
 
-// Web Audio Synthesizer
+// ==========================================================================
+// EMIL KOWALSKI MOTION & TACTILE SOUND ENGINE
+// ==========================================================================
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+/**
+ * Zero-latency synthesized micro-haptic sound effects.
+ */
+function playMicroHaptic(type = 'click') {
+    try {
+        if (!audioCtx) return;
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume().catch(() => {});
+        }
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        if (type === 'click') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.exponentialRampToValueAtTime(320, now + 0.018);
+            gain.gain.setValueAtTime(0.035, now);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.018);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.018);
+        } else if (type === 'switch') {
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(520, now);
+            osc.frequency.exponentialRampToValueAtTime(940, now + 0.025);
+            gain.gain.setValueAtTime(0.028, now);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.025);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.025);
+        } else if (type === 'scrub') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(1100, now);
+            gain.gain.setValueAtTime(0.015, now);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.008);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.008);
+        } else if (type === 'snap') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(450, now);
+            osc.frequency.exponentialRampToValueAtTime(750, now + 0.03);
+            gain.gain.setValueAtTime(0.04, now);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.03);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now);
+            osc.stop(now + 0.03);
+        }
+    } catch (e) {
+        // Fallback silently if autoplay restriction triggers before first gesture
+    }
+}
+
+/**
+ * Kinetic number counter roll with spring easing.
+ */
+function animateNumber(element, startVal, endVal, duration = 500, suffix = '%') {
+    if (!element) return;
+    const start = parseInt(startVal, 10) || 0;
+    const end = parseInt(endVal, 10) || 0;
+    if (start === end) {
+        element.innerText = `${end}${suffix}`;
+        return;
+    }
+    const startTime = performance.now();
+    function update(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        // Spring-like cubic deceleration curve
+        const ease = 1 - Math.pow(1 - progress, 3);
+        const current = Math.round(start + (end - start) * ease);
+        element.innerText = `${current}${suffix}`;
+        if (progress < 1) {
+            requestAnimationFrame(update);
+        }
+    }
+    requestAnimationFrame(update);
+}
+
+/**
+ * 120 FPS Laser-Masked Specular Rim & 3D Spring Perspective Tilt Engine
+ */
+function initLaserRimAndCardMotion() {
+    const cards = document.querySelectorAll('.shadcn-card');
+    
+    cards.forEach(card => {
+        let targetX = -500;
+        let targetY = -500;
+        let currentX = -500;
+        let currentY = -500;
+        let targetOpacity = 0;
+        let currentOpacity = 0;
+        let targetRotX = 0;
+        let targetRotY = 0;
+        let currentRotX = 0;
+        let currentRotY = 0;
+        let isHovered = false;
+        let animId = null;
+
+        function updateCardPhysics() {
+            // Spring Lerp interpolation
+            currentX += (targetX - currentX) * 0.22;
+            currentY += (targetY - currentY) * 0.22;
+            currentOpacity += (targetOpacity - currentOpacity) * 0.18;
+            currentRotX += (targetRotX - currentRotX) * 0.18;
+            currentRotY += (targetRotY - currentRotY) * 0.18;
+
+            card.style.setProperty('--rim-x', `${currentX}px`);
+            card.style.setProperty('--rim-y', `${currentY}px`);
+            card.style.setProperty('--rim-opacity', currentOpacity.toFixed(3));
+            
+            if (isHovered) {
+                card.style.transform = `perspective(1000px) rotateX(${currentRotX.toFixed(2)}deg) rotateY(${currentRotY.toFixed(2)}deg) translateY(-2px)`;
+            } else {
+                card.style.transform = `perspective(1000px) rotateX(${currentRotX.toFixed(2)}deg) rotateY(${currentRotY.toFixed(2)}deg) translateY(0px)`;
+            }
+
+            if (isHovered || Math.abs(currentOpacity - targetOpacity) > 0.01 || Math.abs(currentRotX) > 0.04 || Math.abs(currentRotY) > 0.04) {
+                animId = requestAnimationFrame(updateCardPhysics);
+            } else {
+                animId = null;
+            }
+        }
+
+        card.addEventListener('pointerenter', (e) => {
+            isHovered = true;
+            targetOpacity = 1;
+            const rect = card.getBoundingClientRect();
+            targetX = e.clientX - rect.left;
+            targetY = e.clientY - rect.top;
+            if (!animId) animId = requestAnimationFrame(updateCardPhysics);
+        });
+
+        card.addEventListener('pointermove', (e) => {
+            const rect = card.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            targetX = x;
+            targetY = y;
+            targetOpacity = 1;
+
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            const deltaX = (x - centerX) / (centerX || 1);
+            const deltaY = (y - centerY) / (centerY || 1);
+            
+            targetRotX = -deltaY * 3.0; // Max 3 deg subtle tilt
+            targetRotY = deltaX * 3.0;
+
+            if (!animId) animId = requestAnimationFrame(updateCardPhysics);
+        });
+
+        card.addEventListener('pointerleave', () => {
+            isHovered = false;
+            targetOpacity = 0;
+            targetRotX = 0;
+            targetRotY = 0;
+            if (!animId) animId = requestAnimationFrame(updateCardPhysics);
+        });
+    });
+}
 
 function playAlertSiren() {
     if (!audioEnabled || audioCtx.state === 'suspended') return;
@@ -1077,7 +1246,9 @@ async function loadRegionForecast(regionId) {
             descEl.innerText = "Прямої загрози зараз немає. Фоновий рівень безпечний (Штатний режим).";
         }
 
-        document.getElementById('avg24hRisk').innerText = `${Math.round(data.avg_24h_risk * 100)}%`;
+        const avgEl = document.getElementById('avg24hRisk');
+        const targetRisk = Math.round(data.avg_24h_risk * 100);
+        if (avgEl) animateNumber(avgEl, avgEl.innerText, targetRisk);
 
         renderRiskWindows(data.high_risk_windows);
 
@@ -1097,20 +1268,21 @@ function renderRiskWindows(windows) {
 
     if (!windows || windows.length === 0) {
         container.innerHTML = `
-            <div class="col-span-full py-2 text-center text-xs text-slate-500 bg-slate-900/50 rounded-lg border border-slate-800">
+            <div class="col-span-full py-2 text-center text-xs text-slate-500 bg-slate-900/50 rounded-lg border border-slate-800 card-pop">
                 <i class="fa-solid fa-check-circle text-emerald-500 mr-1"></i> Критичних сплесків загрози на найближчі години не виявлено
             </div>
         `;
         return;
     }
 
-    windows.forEach(w => {
+    windows.forEach((w, idx) => {
         const isCrit = w.probability >= 80;
         const bg = isCrit ? 'bg-red-950/40 border-red-800/60 text-red-300' : 'bg-amber-950/40 border-amber-800/60 text-amber-300';
         const icon = isCrit ? 'fa-triangle-exclamation text-red-400' : 'fa-clock text-amber-400';
 
         const card = document.createElement('div');
-        card.className = `p-2 rounded-xl border ${bg} flex flex-col justify-between`;
+        card.className = `p-2 rounded-xl border ${bg} flex flex-col justify-between card-pop`;
+        card.style.animationDelay = `${idx * 60}ms`;
         card.innerHTML = `
             <div class="flex items-center justify-between">
                 <span class="text-xs font-mono font-bold tracking-wide">${w.interval_str}</span>
@@ -1132,17 +1304,25 @@ function updateThreatBreakdown(data) {
     const ballistic = Math.min(65, Math.max(5, Math.round(base * 0.8)));
     const strategic = Math.min(60, Math.max(3, Math.round(base * 0.5)));
 
-    document.getElementById('riskShahed').innerText = `${shahed}%`;
-    document.getElementById('barShahed').style.width = `${shahed}%`;
+    const elShahed = document.getElementById('riskShahed');
+    const elMig = document.getElementById('riskMig');
+    const elBallistic = document.getElementById('riskBallistic');
+    const elStrategic = document.getElementById('riskStrategic');
 
-    document.getElementById('riskMig').innerText = `${mig}%`;
-    document.getElementById('barMig').style.width = `${mig}%`;
+    if (elShahed) animateNumber(elShahed, elShahed.innerText, shahed);
+    if (elMig) animateNumber(elMig, elMig.innerText, mig);
+    if (elBallistic) animateNumber(elBallistic, elBallistic.innerText, ballistic);
+    if (elStrategic) animateNumber(elStrategic, elStrategic.innerText, strategic);
 
-    document.getElementById('riskBallistic').innerText = `${ballistic}%`;
-    document.getElementById('barBallistic').style.width = `${ballistic}%`;
+    const barShahed = document.getElementById('barShahed');
+    const barMig = document.getElementById('barMig');
+    const barBallistic = document.getElementById('barBallistic');
+    const barStrategic = document.getElementById('barStrategic');
 
-    document.getElementById('riskStrategic').innerText = `${strategic}%`;
-    document.getElementById('barStrategic').style.width = `${strategic}%`;
+    if (barShahed) barShahed.style.width = `${shahed}%`;
+    if (barMig) barMig.style.width = `${mig}%`;
+    if (barBallistic) barBallistic.style.width = `${ballistic}%`;
+    if (barStrategic) barStrategic.style.width = `${strategic}%`;
 }
 
 // 7. Load National Overview & Regions List
@@ -1151,7 +1331,10 @@ async function loadOverview() {
         const res = await fetch('/api/overview');
         nationalOverview = await res.json();
         
-        document.getElementById('activeAlertsCounter').innerText = `${nationalOverview.active_alerts_count} / ${nationalOverview.total_regions}`;
+        const counterEl = document.getElementById('activeAlertsCounter');
+        if (counterEl) {
+            counterEl.innerText = `${nationalOverview.active_alerts_count} / ${nationalOverview.total_regions}`;
+        }
         
         if (nationalOverview.near_term_predictions) {
             renderNearTermPredictions(nationalOverview.near_term_predictions);
@@ -1249,13 +1432,13 @@ async function loadRecentLogs() {
             return;
         }
 
-        logs.forEach(log => appendLogItem(log, false));
+        logs.forEach((log, idx) => appendLogItem(log, false, idx));
     } catch (e) {
         console.error("Error loading logs:", e);
     }
 }
 
-function appendLogItem(log, prepend = true) {
+function appendLogItem(log, prepend = true, index = 0) {
     const container = document.getElementById('threatFeedContainer');
     if (!container) return;
 
@@ -1285,7 +1468,10 @@ function appendLogItem(log, prepend = true) {
         badgeText = '🔴 ЧЕРВОНИЙ (РАКЕТИ)';
     }
 
-    item.className = "p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs flex flex-col gap-1.5 transition-all hover:border-slate-700 shadow-sm";
+    item.className = "p-2.5 rounded-xl bg-slate-900/90 border border-slate-800 text-xs flex flex-col gap-1.5 transition-all hover:border-slate-700 shadow-sm feed-item-animate";
+    if (!prepend && index > 0) {
+        item.style.animationDelay = `${Math.min(index * 20, 300)}ms`;
+    }
     
     const timeStr = new Date(log.created_at || log.timestamp).toLocaleTimeString('uk-UA', { timeZone: 'Europe/Kyiv' });
 
@@ -1460,6 +1646,7 @@ function initControls() {
 
     // Timeline Filter Buttons
     const setFilter = (f) => {
+        playMicroHaptic('switch');
         currentTimelineFilter = f;
         drawCanvasTimeline();
     };
@@ -1491,7 +1678,11 @@ function initControls() {
 
             if (mouseX >= padLeft && mouseX <= rect.width - padRight && pts.length > 1) {
                 const ratio = (mouseX - padLeft) / plotW;
-                hoverPointIndex = Math.min(pts.length - 1, Math.max(0, Math.round(ratio * (pts.length - 1))));
+                const newHoverIndex = Math.min(pts.length - 1, Math.max(0, Math.round(ratio * (pts.length - 1))));
+                if (newHoverIndex !== hoverPointIndex) {
+                    hoverPointIndex = newHoverIndex;
+                    playMicroHaptic('scrub');
+                }
             } else {
                 hoverPointIndex = null;
             }
@@ -1509,9 +1700,101 @@ function initControls() {
     });
 }
 
-// Global Startup
+function initScrubberControls() {
+    const btnLive = document.getElementById('fcBtnLive');
+    if (btnLive) btnLive.onclick = () => {
+        playMicroHaptic('snap');
+        setLiveMode();
+    };
 
-// ==========================================
+    const btn30m = document.getElementById('fcBtn30m');
+    if (btn30m) btn30m.onclick = () => {
+        playMicroHaptic('click');
+        setForecastOffsetMinutes(30);
+    };
+
+    const btn1h = document.getElementById('fcBtn1h');
+    if (btn1h) btn1h.onclick = () => {
+        playMicroHaptic('click');
+        setForecastOffsetMinutes(60);
+    };
+
+    const btn2h = document.getElementById('fcBtn2h');
+    if (btn2h) btn2h.onclick = () => {
+        playMicroHaptic('click');
+        setForecastOffsetMinutes(120);
+    };
+
+    const btn4h = document.getElementById('fcBtn4h');
+    if (btn4h) btn4h.onclick = () => {
+        playMicroHaptic('click');
+        setForecastOffsetMinutes(240);
+    };
+
+    const btn8h = document.getElementById('fcBtn8h');
+    if (btn8h) btn8h.onclick = () => {
+        playMicroHaptic('click');
+        setForecastOffsetMinutes(480);
+    };
+
+    const btn12h = document.getElementById('fcBtn12h');
+    if (btn12h) btn12h.onclick = () => {
+        playMicroHaptic('click');
+        setForecastOffsetMinutes(720);
+    };
+
+    const btn24h = document.getElementById('fcBtn24h');
+    if (btn24h) btn24h.onclick = () => {
+        playMicroHaptic('click');
+        setForecastOffsetMinutes(1440);
+    };
+
+    const btnPlay = document.getElementById('btnPlayTimelapse');
+    if (btnPlay) btnPlay.onclick = () => {
+        playMicroHaptic('switch');
+        toggleTimelapse();
+    };
+
+    const slider = document.getElementById('forecastTimeSlider');
+    if (slider) {
+        let lastVal = slider.value;
+        slider.oninput = (e) => {
+            if (isTimelapsePlaying) stopTimelapse();
+            if (e.target.value !== lastVal) {
+                lastVal = e.target.value;
+                playMicroHaptic('scrub');
+            }
+            setForecastStep(parseInt(e.target.value));
+        };
+    }
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+    initIntroSplash();
+    initMap();
+    initControls();
+    initScrubberControls();
+    initLaserRimAndCardMotion();
+    
+    await loadRegionsList();
+    await loadOverview();
+    await loadMatrix();
+    await loadRegionForecast(selectedRegionId);
+    await loadRecentLogs();
+    
+    initWebSocket();
+    
+    setInterval(() => {
+        if (activeForecastStepIndex === null) {
+            loadOverview();
+        }
+        loadRegionForecast(selectedRegionId);
+    }, 10000);
+
+    setInterval(() => {
+        loadMatrix();
+    }, 45000);
+});
 // 11. 24-Hour Predictive Forecast Engine & Map Scrubber
 // ==========================================
 
@@ -1525,15 +1808,19 @@ function renderNearTermPredictions(predictions) {
         return;
     }
 
-    predictions.forEach(p => {
+    predictions.forEach((p, idx) => {
         const isRed = p.alert_level === 'RED';
         const cardBg = isRed ? 'bg-red-950/40 border-red-800/60' : 'bg-yellow-950/40 border-yellow-800/60';
         const badgeBg = isRed ? 'bg-red-500/20 text-red-300 border-red-500/40' : 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40';
         const icon = isRed ? 'fa-triangle-exclamation text-red-400' : 'fa-paper-plane text-yellow-400';
 
         const card = document.createElement('div');
-        card.className = `p-2 rounded-xl border ${cardBg} flex items-center justify-between gap-2 shadow-sm transition hover:scale-[1.01] cursor-pointer`;
-        card.onclick = () => selectRegion(p.region_id);
+        card.className = `p-2 rounded-xl border ${cardBg} flex items-center justify-between gap-2 shadow-sm transition hover:scale-[1.01] cursor-pointer emil-btn card-pop`;
+        card.style.animationDelay = `${idx * 50}ms`;
+        card.onclick = () => {
+            playMicroHaptic('click');
+            selectRegion(p.region_id);
+        };
         card.innerHTML = `
             <div class="flex items-center gap-2 min-w-0">
                 <i class="fa-solid ${icon} text-sm flex-shrink-0"></i>
@@ -1694,66 +1981,3 @@ function stopTimelapse() {
     if (btn) btn.className = 'px-3 py-1 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition flex items-center gap-1.5 shadow-sm';
     if (playText) playText.innerText = '24г Таймлапс';
 }
-
-function initScrubberControls() {
-    const btnLive = document.getElementById('fcBtnLive');
-    if (btnLive) btnLive.onclick = setLiveMode;
-
-    const btn30m = document.getElementById('fcBtn30m');
-    if (btn30m) btn30m.onclick = () => setForecastOffsetMinutes(30);
-
-    const btn1h = document.getElementById('fcBtn1h');
-    if (btn1h) btn1h.onclick = () => setForecastOffsetMinutes(60);
-
-    const btn2h = document.getElementById('fcBtn2h');
-    if (btn2h) btn2h.onclick = () => setForecastOffsetMinutes(120);
-
-    const btn4h = document.getElementById('fcBtn4h');
-    if (btn4h) btn4h.onclick = () => setForecastOffsetMinutes(240);
-
-    const btn8h = document.getElementById('fcBtn8h');
-    if (btn8h) btn8h.onclick = () => setForecastOffsetMinutes(480);
-
-    const btn12h = document.getElementById('fcBtn12h');
-    if (btn12h) btn12h.onclick = () => setForecastOffsetMinutes(720);
-
-    const btn24h = document.getElementById('fcBtn24h');
-    if (btn24h) btn24h.onclick = () => setForecastOffsetMinutes(1440);
-
-    const btnPlay = document.getElementById('btnPlayTimelapse');
-    if (btnPlay) btnPlay.onclick = toggleTimelapse;
-
-    const slider = document.getElementById('forecastTimeSlider');
-    if (slider) {
-        slider.oninput = (e) => {
-            if (isTimelapsePlaying) stopTimelapse();
-            setForecastStep(parseInt(e.target.value));
-        };
-    }
-}
-
-window.addEventListener('DOMContentLoaded', async () => {
-    initIntroSplash();
-    initMap();
-    initControls();
-    initScrubberControls();
-    
-    await loadRegionsList();
-    await loadOverview();
-    await loadMatrix();
-    await loadRegionForecast(selectedRegionId);
-    await loadRecentLogs();
-    
-    initWebSocket();
-    
-    setInterval(() => {
-        if (activeForecastStepIndex === null) {
-            loadOverview();
-        }
-        loadRegionForecast(selectedRegionId);
-    }, 10000);
-
-    setInterval(() => {
-        loadMatrix();
-    }, 45000);
-});

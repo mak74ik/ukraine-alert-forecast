@@ -36,3 +36,11 @@ alerts_data.db
 .vscode/
 .idea/
 *.log
+
+# Node & Android Build
+node_modules/
+android/.gradle/
+android/app/build/
+android/build/
+android/captures/
+android/.idea/

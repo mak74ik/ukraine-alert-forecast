@@ -1,0 +1,22 @@
+{
+  "name": "ua-alert-forecast",
+  "version": "2.2.0",
+  "description": "UA Alert Forecast & Live Vector Radar System - Android Mobile App",
+  "main": "main.py",
+  "scripts": {
+    "cap:sync": "npx cap sync",
+    "cap:android": "npx cap open android",
+    "cap:build": "npx cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.1.2",
+    "@capacitor/app": "^6.0.1",
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/haptics": "^6.0.1",
+    "@capacitor/local-notifications": "^6.0.2",
+    "@capacitor/status-bar": "^6.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}

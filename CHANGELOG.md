@@ -51,13 +51,13 @@
 
 | Файл | Опис змін |
 |---|---|
-| [`app/static/index.html`](file:///Users/yoshi/antigravity/ukraine-alert-forecast/app/static/index.html) | Виправлено CSS-структуру екрана завантаження, оновлено стилі карток та модальних вікон вибору району. |
-| [`app/static/app.js`](file:///Users/yoshi/antigravity/ukraine-alert-forecast/app/static/app.js) | Реалізовано динамічне оновлення стилів районів на льоту, підтримку жовтого/червоного статусів, захист від скидання масштабу. |
-| [`app/engine/forecaster.py`](file:///Users/yoshi/antigravity/ukraine-alert-forecast/app/engine/forecaster.py) | Динамічне визначення рівня тривоги (Yellow/Orange/Red) замість жорсткого призначення червоного кольору. |
-| [`app/collector/open_monitor.py`](file:///Users/yoshi/antigravity/ukraine-alert-forecast/app/collector/open_monitor.py) | Отримання типів загроз та окремих рівнів небезпеки для районів з відкритих джерел телеметрії. |
-| [`app/data/raions.py`](file:///Users/yoshi/antigravity/ukraine-alert-forecast/app/data/raions.py) | Оновлена база районів та їхніх синонімів для точного зіставлення тексту з офіційних зведень. |
-| [`app/static/ukraine_geojson.js`](file:///Users/yoshi/antigravity/ukraine-alert-forecast/app/static/ukraine_geojson.js) | Оновлені координатні контури областей та районів України. |
-| [`README.md`](file:///Users/yoshi/antigravity/ukraine-alert-forecast/README.md) | Переписано документацію зрозумілою людською мовою для зручності користувачів. |
+| [`app/static/index.html`](app/static/index.html) | Виправлено CSS-структуру екрана завантаження, оновлено стилі карток та модальних вікон вибору району. |
+| [`app/static/app.js`](app/static/app.js) | Реалізовано динамічне оновлення стилів районів на льоту, підтримку жовтого/червоного статусів, захист від скидання масштабу. |
+| [`app/engine/forecaster.py`](app/engine/forecaster.py) | Динамічне визначення рівня тривоги (Yellow/Orange/Red) замість жорсткого призначення червоного кольору. |
+| [`app/collector/open_monitor.py`](app/collector/open_monitor.py) | Отримання типів загроз та окремих рівнів небезпеки для районів з відкритих джерел телеметрії. |
+| [`app/data/raions.py`](app/data/raions.py) | Оновлена база районів та їхніх синонімів для точного зіставлення тексту з офіційних зведень. |
+| [`app/static/ukraine_geojson.js`](app/static/ukraine_geojson.js) | Оновлені координатні контури областей та районів України. |
+| [`README.md`](README.md) | Переписано документацію зрозумілою людською мовою для зручності користувачів. |
 
 ---
 

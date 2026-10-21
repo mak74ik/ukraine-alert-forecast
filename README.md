@@ -4,6 +4,10 @@
 [![Українська розробка](https://img.shields.io/badge/Зроблено_в-Україні-ffd700.svg)](https://github.com/mak74ik/ukraine-alert-forecast)
 [![Автономна робота](https://img.shields.io/badge/Працює-Автономно-10b981.svg)](https://github.com/mak74ik/ukraine-alert-forecast)
 
+<p align="center">
+  <img src="assets/preview-telemetry.png" alt="UA Alert Forecast Telemetry & Live Radar" width="100%" style="max-width: 960px; border-radius: 12px; box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);" />
+</p>
+
 **Зручна та автономна система моніторингу повітряних тривог, радару загроз і прогнозування небезпеки по всій Україні на 24 години вперед.**
 
 Працює повністю самостійно, швидко та безкоштовно. Не потребує жодних реєстрацій, логінів чи платних підписок.
